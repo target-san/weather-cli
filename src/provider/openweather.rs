@@ -1,5 +1,6 @@
 use crate::BoxFuture;
 use serde::Deserialize;
+use toml::value::Date;
 
 pub struct OpenWeather {
     apikey: String,
@@ -29,10 +30,11 @@ impl super::Provider for OpenWeather {
         todo!()
     }
 
-    fn read_weather(&self, lat: f64, lon: f64, time: u64) -> BoxFuture<anyhow::Result<String>> {
+    fn read_weather(&self, lat: f64, lon: f64, date: Date) -> BoxFuture<anyhow::Result<String>> {
         let apikey = &self.apikey;
         let url = format!(
-            "https://api.openweathermap.org/data/3.0/onecall/timemachine?lat={lat}&lon={lon}&dt={time}&appid={apikey}"
+            "https://api.openweathermap.org/data/3.0/onecall/timemachine?lat={lat}&lon={lon}&dt={}-{}-{}&appid={apikey}",
+            date.year, date.month, date.day
         );
         let fut = async {
             let text = reqwest::get(url)

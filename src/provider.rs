@@ -1,7 +1,10 @@
+use toml::value::Date;
+
 use crate::BoxFuture;
 use std::fmt::{self, Formatter};
 
 pub mod openweather;
+pub mod weatherapi;
 /// Defines any provider of weather data
 ///
 /// NB: Futures can be unboxed when async traits arrive
@@ -12,7 +15,7 @@ pub trait Provider {
     /// * `config` - TOML data tree, should be parseable into internal config
     ///
     /// # Returns
-    /// Boxed future which completes with provider instance or error
+    /// Provider instance or error
     fn new(config: toml::Value) -> anyhow::Result<Self>
     where
         Self: Sized;
@@ -26,7 +29,7 @@ pub trait Provider {
     fn help(f: &mut Formatter<'_>) -> fmt::Result
     where
         Self: Sized;
-    /// Fetches weather information asynchronously at specified location and date
+    /// Fetches weather information asynchronously at specified location and UNIX timestamp
     ///
     /// # Parameters
     /// * `lat` - lattitude, in range `-90..=90`
@@ -37,5 +40,5 @@ pub trait Provider {
     ///
     /// # Returns
     /// Boxed future which completes with forecast data or error
-    fn read_weather(&self, lat: f64, lon: f64, time: u64) -> BoxFuture<anyhow::Result<String>>;
+    fn read_weather(&self, lat: f64, lon: f64, date: Date) -> BoxFuture<anyhow::Result<String>>;
 }
