@@ -38,9 +38,10 @@ impl super::Provider for WeatherApi {
     fn read_weather(&self, lat: f64, lon: f64, date: Date) -> BoxFuture<anyhow::Result<String>> {
         let apikey = &self.apikey;
         let url = format!(
-            "http://api.weatherapi.com/v1/history.json?key={apikey}&q={lat},{lon}&dt={}-{}-{}",
+            "http://api.weatherapi.com/v1/history.json?key={apikey}&q={lat:.4},{lon:.4}&dt={}-{}-{}",
             date.year, date.month, date.day
         );
+        println!("{url}");
         let fut = async {
             let text = reqwest::get(url)
                 .await?
@@ -51,7 +52,7 @@ impl super::Provider for WeatherApi {
             if let Ok(ApiError { error: ApiErrorInner { code, message } }) = serde_json::from_str(&text) {
                 Err(anyhow::anyhow!("API call error {code}: {message}"))
             } else {
-                Ok(text)
+                Ok(serde_json::to_string_pretty(&serde_json::from_str::<serde_json::Value>(&text)?)?)
             }
         };
         Box::pin(fut)
