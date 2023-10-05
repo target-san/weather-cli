@@ -1,0 +1,36 @@
+﻿name: CI
+
+on:
+  push:
+    branches: main
+  pull_request:
+    branches: main
+  workflow_dispatch: # allows manual trigger
+
+jobs:
+  ci:
+    name: CI
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        rust: [stable, nightly, 1.72.0]
+        os: [ubuntu-latest, windows-latest]
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+    - name: Install rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: ${{ matrix.rust }}
+        profile: minimal
+        override: true
+    - name: Check code formatting
+      run: |
+        cargo fmt --check -- -l
+    - name: Linter
+      run: |
+        cargo clippy -q --no-deps --tests --benches --examples --all-features
+    - name: Test
+      run: |
+        cargo test
