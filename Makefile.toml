@@ -1,0 +1,27 @@
+[tasks.ci-fmt]
+command = "cargo"
+args = ["fmt", "--check", "--", "-l"]
+
+[tasks.ci-lint]
+command = "cargo"
+args = [
+    "clippy",
+    "-q",
+    "--no-deps",
+    "--tests",
+    "--benches",
+    "--examples",
+    "--all-features",
+]
+
+[tasks.ci-test]
+command = "cargo"
+args = [ "test" ]
+
+[tasks.ci]
+script_runner = "@duckscript"
+script = """
+    cm_run_task ci-fmt
+    cm_run_task ci-lint
+    cm_run_task ci-test
+"""

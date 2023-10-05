@@ -1,5 +1,5 @@
-use serde::Deserialize;
 use crate::BoxFuture;
+use serde::Deserialize;
 
 pub struct OpenWeather {
     apikey: String,
@@ -7,7 +7,7 @@ pub struct OpenWeather {
 
 #[derive(Deserialize)]
 struct Params {
-    apikey: String
+    apikey: String,
 }
 
 #[derive(Deserialize)]
@@ -17,7 +17,10 @@ struct ApiError {
 }
 
 impl super::Provider for OpenWeather {
-    fn new(config: toml::Value) -> anyhow::Result<Self> where Self: Sized {
+    fn new(config: toml::Value) -> anyhow::Result<Self>
+    where
+        Self: Sized,
+    {
         let Params { apikey } = Params::deserialize(config)?;
         Ok(Self { apikey })
     }
@@ -40,8 +43,7 @@ impl super::Provider for OpenWeather {
 
             if let Ok(ApiError { cod, message }) = serde_json::from_str(&text) {
                 Err(anyhow::anyhow!("API call error {cod}: {message}"))
-            }
-            else {
+            } else {
                 Ok(text)
             }
         };

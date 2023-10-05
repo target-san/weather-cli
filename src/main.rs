@@ -1,7 +1,7 @@
 #![deny(warnings)]
 
-use std::pin::Pin;
 use std::future::Future;
+use std::pin::Pin;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::provider::openweather::OpenWeather;
@@ -19,11 +19,21 @@ async fn main() -> anyhow::Result<()> {
     providers.add_provider::<OpenWeather>("openweather");
     let config: toml::Value = toml::toml! {
         apikey = "matumba"
-    }.into();
+    }
+    .into();
 
     let prov = providers.create("openweather", config)?;
 
-    let forecast = prov.read_weather(0.0, 0.0, SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs()).await?;
+    let forecast = prov
+        .read_weather(
+            0.0,
+            0.0,
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
+        )
+        .await?;
 
     println!("{forecast}");
 

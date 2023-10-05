@@ -25,12 +25,15 @@ jobs:
         toolchain: ${{ matrix.rust }}
         profile: minimal
         override: true
+    - name: Install cargo-make
+      run: |
+        cargo install cargo-make
     - name: Check code formatting
       run: |
-        cargo fmt --check -- -l
+        cargo make ci-fmt
     - name: Linter
       run: |
-        cargo clippy -q --no-deps --tests --benches --examples --all-features
+        cargo make ci-lint
     - name: Test
       run: |
-        cargo test
+        cargo make ci-test
