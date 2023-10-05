@@ -24,6 +24,7 @@ jobs:
       with:
         toolchain: ${{ matrix.rust }}
         profile: minimal
+        components: rustfmt, clippy
         override: true
     - name: Install cargo-make
       run: |
