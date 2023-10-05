@@ -1,10 +1,10 @@
 #![deny(warnings)]
 
+use chrono::Datelike;
+use clap::Parser;
 use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
-use chrono::Datelike;
-use clap::Parser;
 use toml::value::Date;
 
 use crate::provider::openweather::OpenWeather;
@@ -29,7 +29,7 @@ struct Cli {
 #[derive(clap::Subcommand)]
 enum CliCmd {
     /// Configure specified forecast provider
-    /// 
+    ///
     /// Configuration is specified as a sequence of "<name>=<value>" space-separated entries.
     /// If no configuration values are specified, runs in interactive mode
     Configure {
@@ -55,7 +55,11 @@ enum CliCmd {
 
 fn date_now() -> Date {
     let date = chrono::Local::now().date_naive();
-    Date { year: date.year() as u16, month: date.month() as u8, day: date.day() as u8 }
+    Date {
+        year: date.year() as u16,
+        month: date.month() as u8,
+        day: date.day() as u8,
+    }
 }
 
 #[tokio::main]

@@ -49,10 +49,15 @@ impl super::Provider for WeatherApi {
                 .await
                 .map_err::<anyhow::Error, _>(Into::into)?;
 
-            if let Ok(ApiError { error: ApiErrorInner { code, message } }) = serde_json::from_str(&text) {
+            if let Ok(ApiError {
+                error: ApiErrorInner { code, message },
+            }) = serde_json::from_str(&text)
+            {
                 Err(anyhow::anyhow!("API call error {code}: {message}"))
             } else {
-                Ok(serde_json::to_string_pretty(&serde_json::from_str::<serde_json::Value>(&text)?)?)
+                Ok(serde_json::to_string_pretty(&serde_json::from_str::<
+                    serde_json::Value,
+                >(&text)?)?)
             }
         };
         Box::pin(fut)
