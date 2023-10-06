@@ -9,10 +9,10 @@ use toml::value::Date;
 
 use crate::provider::openweather::OpenWeather;
 use crate::provider::weatherapi::WeatherApi;
-use crate::selector::Selector;
+use crate::provider_registry::ProviderRegistry;
 
 mod provider;
-mod selector;
+mod provider_registry;
 /// Used as shortcut alias for any boxed future
 type BoxFuture<T> = Pin<Box<dyn Future<Output = T>>>;
 
@@ -45,6 +45,12 @@ enum CliCmd {
         /// Date of weather forecast; can be either "YYYY-MM-DD" or "now", in latter case corresponds to current local date
         #[arg(short, long, default_value = "now")]
         date: String,
+        /// Use specified provider instead of default one
+        #[arg(short, long)]
+        provider: Option<String>,
+        /// Set explicitly specified provider as default one. Works only with '--provider' argument
+        #[arg(short, long)]
+        set_default: bool,
     },
     /// Clear configuration of specified or all providers
     Clear {
@@ -52,7 +58,7 @@ enum CliCmd {
         providers: Vec<String>,
     },
 }
-
+/// Get today's date as TOML `Date`
 fn date_now() -> Date {
     let date = chrono::Local::now().date_naive();
     Date {
@@ -81,7 +87,7 @@ async fn main() -> anyhow::Result<()> {
 
     let config_path = config_path.canonicalize()?;
     // Read config file itself - if it exists
-    let config = if config_path.is_file() {
+    let mut config = if config_path.is_file() {
         toml::from_str(&tokio::fs::read_to_string(&config_path).await?)?
     } else if config_path.exists() {
         anyhow::bail!(
@@ -91,6 +97,11 @@ async fn main() -> anyhow::Result<()> {
     } else {
         toml::Table::new()
     };
+    // Fill in providers registry
+    let mut registry = ProviderRegistry::new();
+
+    registry.add_provider::<OpenWeather>("openweather");
+    registry.add_provider::<WeatherApi>("weatherapi");
     // Execute CLI command
     match command {
         CliCmd::Configure {
@@ -100,21 +111,37 @@ async fn main() -> anyhow::Result<()> {
         CliCmd::Get {
             address: _,
             date: _,
+            provider: _,
+            set_default: _,
         } => (),
-        CliCmd::Clear { providers: _ } => (),
+        CliCmd::Clear { providers } => {
+            // Walk all mentioned providers and remove them
+            for prov_name in &providers {
+                // "all" means all providers
+                if prov_name == "all" {
+                    for name in registry.keys() {
+                        config.remove(name.as_ref());
+                    }
+                }
+                else if registry.contains_key(prov_name.as_str()) {
+                    config.remove(prov_name);
+                }
+                else {
+                    anyhow::bail!("No such provider: {prov_name}");
+                }
+            }
+        },
     }
 
-    let mut providers = Selector::new();
-
-    providers.add_provider::<OpenWeather>("openweather");
-    providers.add_provider::<WeatherApi>("weatherapi");
-
-    let stub_config: toml::Value = toml::toml! {
+    let stub_config = toml::toml! {
         apikey = "banana"
     }
     .into();
 
-    let prov = providers.create("weatherapi", stub_config)?;
+    let prov = registry
+        .get("weatherapi")
+        .ok_or_else(|| anyhow::anyhow!("No such provider"))?
+        .create(stub_config)?;
 
     let forecast = prov
         .read_weather(

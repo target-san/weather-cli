@@ -3,16 +3,25 @@ use std::collections::btree_map::Entry as BTreeEntry;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::marker::PhantomData;
+use std::ops::Deref;
 
 use crate::provider::Provider;
 
-pub struct Selector {
+pub struct ProviderRegistry {
     /// Map of registered providers.
     /// `BTreeMap` is used to have nice alphabetic order when printing help text
     providers: BTreeMap<Cow<'static, str>, Box<dyn ProviderFactory>>,
 }
 
-impl Selector {
+impl Deref for ProviderRegistry {
+    type Target = BTreeMap<Cow<'static, str>, Box<dyn ProviderFactory>>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.providers
+    }
+}
+
+impl ProviderRegistry {
     /// Create new provider selector
     ///
     /// # Returns
@@ -42,30 +51,10 @@ impl Selector {
             BTreeEntry::Occupied(e) => panic!("Provider {} already registered", e.key()),
         }
     }
-
-    #[allow(unused)]
-    pub fn help(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for prov in self.providers.values() {
-            prov.help(f)?;
-        }
-        Ok(())
-    }
-
-    pub fn create(
-        &self,
-        name: impl Into<Cow<'static, str>>,
-        config: toml::Value,
-    ) -> anyhow::Result<Box<dyn Provider>> {
-        let name: Cow<'static, str> = name.into();
-        self.providers.get(&name).map_or_else(
-            || Err(anyhow::anyhow!("No such provider: {name}")),
-            |factory| factory.create(config),
-        )
-    }
 }
 /// Factory wrapper for any weather provider
 /// Required to virtualize static methods of specific `Provider` implementor
-trait ProviderFactory {
+pub trait ProviderFactory {
     /// Delegates to `Provider::help`,
     /// which in turn outputs details on concrete provider into formatter
     ///
