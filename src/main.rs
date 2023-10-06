@@ -1,7 +1,6 @@
 #![deny(warnings)]
 
 use anyhow::{anyhow, bail, Context};
-use chrono::Datelike;
 use clap::Parser;
 use config::{Config, Section};
 use date::Date;
@@ -71,18 +70,6 @@ enum CliCmd {
         /// Names of providers whose configurations to clear; specify "all" to clear all providers
         providers: Vec<String>,
     },
-}
-/// Get today's date as TOML `Date`
-///
-/// # Returns
-/// Today's date as TOML `Date` object
-fn date_now() -> Date {
-    let date = chrono::Local::now().date_naive();
-    Date {
-        year: date.year() as u16,
-        month: date.month() as u8,
-        day: date.day() as u8,
-    }
 }
 /// Read app's configuration at specified path; if path isn't provided, default config path is used
 ///

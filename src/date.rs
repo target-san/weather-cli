@@ -1,6 +1,8 @@
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 
+use chrono::Datelike;
+
 /// Simple representation of calendar date, parsed and represented as YYYY-MM-DD
 pub struct Date {
     /// Year, usually 1970+
@@ -9,6 +11,18 @@ pub struct Date {
     pub month: u8,
     /// Month's day, 1-31
     pub day: u8,
+}
+
+impl Date {
+    /// Get today's date
+    pub fn today() -> Self {
+        let date = chrono::Local::now().date_naive();
+        Self {
+            year: date.year() as u16,
+            month: date.month() as u8,
+            day: date.day() as u8,
+        }
+    }
 }
 
 impl Display for Date {

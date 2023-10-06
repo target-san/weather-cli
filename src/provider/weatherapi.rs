@@ -1,4 +1,4 @@
-use crate::{config::Section, date_now, BoxFuture, CowString};
+use crate::{config::Section, BoxFuture, CowString};
 use anyhow::{anyhow, bail, Context};
 use serde::Deserialize;
 
@@ -66,7 +66,7 @@ impl super::Provider for WeatherApi {
         date: Option<Date>,
     ) -> BoxFuture<anyhow::Result<WeatherInfo>> {
         let apikey = &self.apikey;
-        let date = date.unwrap_or_else(date_now);
+        let date = date.unwrap_or_else(Date::today);
         let url = format!(
             "https://api.weatherapi.com/v1/history.json?key={apikey}&q={location}&dt={}-{}-{}",
             date.year, date.month, date.day
