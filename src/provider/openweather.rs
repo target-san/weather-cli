@@ -33,10 +33,6 @@ impl super::Provider for OpenWeather {
         Ok(Self { apikey })
     }
 
-    fn help(_f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        todo!()
-    }
-
     fn get_weather(
         &self,
         location: CowString,

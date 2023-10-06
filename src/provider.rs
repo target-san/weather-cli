@@ -1,7 +1,6 @@
 use toml::value::Date;
 
 use crate::{BoxFuture, CowString};
-use std::fmt::{self, Formatter};
 
 pub mod openweather;
 pub mod weatherapi;
@@ -18,16 +17,6 @@ pub trait Provider {
     /// # Returns
     /// Provider instance or error
     fn new(config: toml::Value) -> anyhow::Result<Self>
-    where
-        Self: Sized;
-    /// Prints useful info about current provider, usually its config options
-    ///
-    /// # Parameters
-    /// * `f` - destination formatter
-    ///
-    /// # Returns
-    /// Formatting result
-    fn help(f: &mut Formatter<'_>) -> fmt::Result
     where
         Self: Sized;
     /// Fetches weather information asynchronously at specified location and UNIX timestamp

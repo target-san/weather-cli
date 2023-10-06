@@ -206,11 +206,11 @@ async fn configure_provider(
 /// Gets weather forecast using specified provider
 async fn get_forecast(
     registry: &ProviderRegistry,
-    config: &toml::Table,
+    config: &mut toml::Table,
     address: String,
     date: String,
     provider: Option<String>,
-    _set_default: bool,
+    set_default: bool,
 ) -> anyhow::Result<String> {
     // Fetch actual provider name
     let provider_name = if let Some(provider) = provider {
@@ -230,12 +230,12 @@ async fn get_forecast(
         .get(provider_name.as_str())
         .ok_or_else(|| anyhow!("No such provider: {provider_name}"))?;
     // Get provider's config
-    let config = config
+    let prov_config = config
         .get(provider_name.as_str())
         .ok_or_else(|| anyhow!("Missing config for provider '{provider_name}'"))?;
     // Spawn provider
     let provider = factory
-        .create(config.clone())
+        .create(prov_config.clone())
         .with_context(|| anyhow!("When trying to construct provider '{provider_name}'"))?;
     // Parse date
     let date = if date == "now" {
@@ -248,10 +248,16 @@ async fn get_forecast(
         Some(date)
     };
 
-    provider
+    let result = provider
         .get_weather(address.into(), date)
         .await
-        .with_context(|| anyhow!("When performing forecast request"))
+        .with_context(|| anyhow!("When performing forecast request"))?;
+    // Set provider as default - if requested
+    if set_default {
+        config.insert(ACTIVE_ENTRY.to_string(), provider_name.into());
+    }
+
+    Ok(result)
 }
 
 fn clear_providers(
@@ -310,7 +316,7 @@ async fn main() -> anyhow::Result<()> {
             set_default,
         } => {
             let forecast =
-                get_forecast(&registry, &config, address, date, provider, set_default).await?;
+                get_forecast(&registry, &mut config, address, date, provider, set_default).await?;
             println!("{forecast}");
         }
         CliCmd::Clear { providers } => clear_providers(&registry, &mut config, providers)?,

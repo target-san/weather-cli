@@ -1,6 +1,5 @@
 use std::collections::btree_map::Entry as BTreeEntry;
 use std::collections::BTreeMap;
-use std::fmt;
 use std::marker::PhantomData;
 use std::ops::Deref;
 
@@ -55,15 +54,6 @@ impl ProviderRegistry {
 /// Factory wrapper for any weather provider
 /// Required to virtualize static methods of specific `Provider` implementor
 pub trait ProviderFactory {
-    /// Delegates to `Provider::help`,
-    /// which in turn outputs details on concrete provider into formatter
-    ///
-    /// # Parameters
-    /// * `f` - formatter
-    ///
-    /// # Returns
-    /// Formatting result
-    fn help(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result;
     /// Delegates to `Provider::new`, which in turn returns boxed provider instance
     ///
     /// # Parameters
@@ -88,10 +78,6 @@ impl<T: Provider + 'static> ProviderFactoryT<T> {
 }
 
 impl<T: Provider + 'static> ProviderFactory for ProviderFactoryT<T> {
-    fn help(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        T::help(f)
-    }
-
     fn create(&self, config: toml::Value) -> anyhow::Result<Box<dyn Provider>> {
         T::new(config).map(|p| Box::new(p) as Box<dyn Provider>)
     }
