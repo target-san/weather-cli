@@ -1,8 +1,6 @@
 use std::fmt::Display;
 
-use toml::value::Date;
-
-use crate::{BoxFuture, CowString};
+use crate::{date::Date, BoxFuture, CowString};
 
 pub mod openweather;
 pub mod weatherapi;

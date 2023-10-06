@@ -3,6 +3,7 @@
 use anyhow::{anyhow, bail, Context};
 use chrono::Datelike;
 use clap::Parser;
+use date::Date;
 use provider::WeatherInfo;
 use serde::Deserialize;
 use std::borrow::Cow;
@@ -11,15 +12,16 @@ use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::str::FromStr;
 use toml::de::ValueDeserializer;
-use toml::value::Date;
 use toml::Value;
 
 use crate::provider::openweather::OpenWeather;
 use crate::provider::weatherapi::WeatherApi;
 use crate::provider_registry::ProviderRegistry;
 
+mod date;
 mod provider;
 mod provider_registry;
+
 /// Used as shortcut alias for any boxed future
 type BoxFuture<T> = Pin<Box<dyn Future<Output = T>>>;
 /// Shortcut for COW string, either static or on-heap
@@ -242,11 +244,7 @@ async fn get_forecast(
     let date = if date == "now" {
         None
     } else {
-        let date = toml::value::Datetime::from_str(&date)
-            .with_context(|| anyhow!("When parsing forecast date"))?
-            .date
-            .ok_or_else(|| anyhow!("Missing actual forecast date"))?;
-        Some(date)
+        Some(Date::from_str(&date).with_context(|| anyhow!("Could not parse forecast date"))?)
     };
 
     let result = provider

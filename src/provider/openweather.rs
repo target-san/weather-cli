@@ -1,9 +1,8 @@
 use crate::{BoxFuture, CowString};
 use anyhow::{anyhow, bail, Context};
 use serde::Deserialize;
-use toml::value::Date;
 
-use super::{WeatherInfo, WeatherKind};
+use super::{Date, WeatherInfo, WeatherKind};
 
 pub struct OpenWeather {
     apikey: String,
