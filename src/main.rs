@@ -8,8 +8,10 @@ use std::borrow::Cow;
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
+use std::str::FromStr;
 use toml::de::ValueDeserializer;
 use toml::value::Date;
+use toml::Value;
 
 use crate::provider::openweather::OpenWeather;
 use crate::provider::weatherapi::WeatherApi;
@@ -19,9 +21,12 @@ mod provider;
 mod provider_registry;
 /// Used as shortcut alias for any boxed future
 type BoxFuture<T> = Pin<Box<dyn Future<Output = T>>>;
+/// Shortcut for COW string, either static or on-heap
 type CowString = Cow<'static, str>;
-
+/// Default location used to verify provider's configuration by sending dummy request
 const DEFAULT_CONFIGURE_LOCATION: &str = "London";
+/// Name of config entry with currently active provider
+const ACTIVE_ENTRY: &str = "current";
 
 /// Command-line client for weather forecast services
 #[derive(clap::Parser)]
@@ -149,7 +154,7 @@ async fn write_config(config: toml::Table, path: impl AsRef<Path>) -> anyhow::Re
     .await
     .with_context(|| anyhow!("When writing configuration to {}", config_path.display()))
 }
-
+/// Configures specified provider, either with provided key-value parameters or interactively
 async fn configure_provider(
     registry: &ProviderRegistry,
     config: &mut toml::Table,
@@ -192,11 +197,58 @@ async fn configure_provider(
     // If check succeeded, write new config entry; if config was empty prior to first configure,
     // set new provider as default one
     if config.is_empty() {
-        config.insert("default".into(), provider.clone().into());
+        config.insert(ACTIVE_ENTRY.into(), provider.clone().into());
     }
     config.insert(provider, new_config.into());
 
     Ok(())
+}
+/// Gets weather forecast using specified provider
+#[allow(unused)]
+async fn get_forecast(
+    registry: &ProviderRegistry,
+    config: &mut toml::Table,
+    address: String,
+    date: String,
+    provider: Option<String>,
+    set_default: bool,
+) -> anyhow::Result<String> {
+    // Fetch actual provider name
+    let provider_name = if let Some(provider) = provider {
+        provider
+    } else {
+        let entry = config.get(ACTIVE_ENTRY)
+            .ok_or_else(|| anyhow!(
+                "Active provider not specified. Please use `-sp <provider_name>` to specify new default one"
+            ))?;
+
+        entry.as_str().ok_or_else(|| anyhow!(
+            "Invalid config entry! Please set new current provider manually via `-sp <provider_name>`")
+        )?.to_string()
+    };
+    // Create factory
+    let factory = registry
+        .get(provider_name.as_str())
+        .ok_or_else(|| anyhow!("No such provider: {provider_name}"))?;
+    // Get provider's config
+    let config = config
+        .get(provider_name.as_str())
+        .ok_or_else(|| anyhow!("Missing config for provider '{provider_name}'"))?;
+    // Spawn provider
+    let provider = factory
+        .create(config.clone())
+        .with_context(|| anyhow!("When trying to construct provider '{provider_name}'"))?;
+    // Parse date
+    let date = if date == "now" {
+        date_now()
+    } else {
+        toml::value::Datetime::from_str(&date)
+            .with_context(|| anyhow!("When parsing forecast date"))?
+            .date
+            .ok_or_else(|| anyhow!("Missing actual forecast date"))?
+    };
+
+    provider.read_weather(address.into(), date).await
 }
 
 fn clear_providers(
@@ -215,6 +267,13 @@ fn clear_providers(
             config.remove(prov_name);
         } else {
             bail!("No such provider: {prov_name}");
+        }
+    }
+    // If there's default entry, and default provider isn't registered,
+    // clear it
+    if let Some(Value::String(default_entry)) = config.get(ACTIVE_ENTRY) {
+        if !config.contains_key(default_entry.as_str()) {
+            config.remove(ACTIVE_ENTRY);
         }
     }
 
@@ -239,11 +298,15 @@ async fn main() -> anyhow::Result<()> {
             parameters,
         } => configure_provider(&registry, &mut config, provider, parameters).await?,
         CliCmd::Get {
-            address: _,
-            date: _,
-            provider: _,
-            set_default: _,
-        } => (),
+            address,
+            date,
+            provider,
+            set_default,
+        } => {
+            let forecast =
+                get_forecast(&registry, &mut config, address, date, provider, set_default).await?;
+            println!("{forecast}");
+        }
         CliCmd::Clear { providers } => clear_providers(&registry, &mut config, providers)?,
     }
 
