@@ -1,15 +1,10 @@
-use crate::{BoxFuture, CowString};
+use crate::{config::Section, BoxFuture, CowString};
 use anyhow::{anyhow, bail, Context};
 use serde::Deserialize;
 
 use super::{Date, WeatherInfo, WeatherKind};
 
 pub struct OpenWeather {
-    apikey: String,
-}
-
-#[derive(Deserialize)]
-struct Params {
     apikey: String,
 }
 
@@ -49,12 +44,16 @@ struct WeatherSection {
 }
 
 impl super::Provider for OpenWeather {
-    fn new(config: toml::Value) -> anyhow::Result<Self>
+    fn new(config: &Section) -> anyhow::Result<Self>
     where
         Self: Sized,
     {
-        let Params { apikey } = Params::deserialize(config)?;
-        Ok(Self { apikey })
+        Ok(Self {
+            apikey: config
+                .get("apikey")
+                .ok_or_else(|| anyhow!("Missing parameter 'apikey'"))?
+                .clone(),
+        })
     }
 
     fn get_weather(

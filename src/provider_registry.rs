@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 use std::marker::PhantomData;
 use std::ops::Deref;
 
+use crate::config::Section;
 use crate::provider::Provider;
 use crate::CowString;
 
@@ -61,7 +62,7 @@ pub trait ProviderFactory {
     ///
     /// # Returns
     /// Boxed future which completes with boxed provider instance or error
-    fn create(&self, config: toml::Value) -> anyhow::Result<Box<dyn Provider>>;
+    fn create(&self, config: &Section) -> anyhow::Result<Box<dyn Provider>>;
 }
 /// Factory companion to type which implements `Provider` trait
 ///
@@ -78,7 +79,7 @@ impl<T: Provider + 'static> ProviderFactoryT<T> {
 }
 
 impl<T: Provider + 'static> ProviderFactory for ProviderFactoryT<T> {
-    fn create(&self, config: toml::Value) -> anyhow::Result<Box<dyn Provider>> {
+    fn create(&self, config: &Section) -> anyhow::Result<Box<dyn Provider>> {
         T::new(config).map(|p| Box::new(p) as Box<dyn Provider>)
     }
 }

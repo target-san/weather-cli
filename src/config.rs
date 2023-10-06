@@ -6,9 +6,16 @@ use light_ini::{IniHandler, IniParser};
 pub type Section = BTreeMap<String, String>;
 
 /// Application configuration structure
+#[derive(Default)]
 pub struct Config {
     pub globals: Section,
     pub sections: BTreeMap<String, Section>,
+}
+
+impl Config {
+    pub fn new() -> Self {
+        Self::default()
+    }
 }
 
 impl FromStr for Config {

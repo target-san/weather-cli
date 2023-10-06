@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use crate::{date::Date, BoxFuture, CowString};
+use crate::{config::Section, date::Date, BoxFuture, CowString};
 
 pub mod openweather;
 pub mod weatherapi;
@@ -61,7 +61,7 @@ pub trait Provider {
     ///
     /// # Returns
     /// Provider instance or error
-    fn new(config: toml::Value) -> anyhow::Result<Self>
+    fn new(config: &Section) -> anyhow::Result<Self>
     where
         Self: Sized;
     /// Fetches weather information asynchronously at specified location and UNIX timestamp

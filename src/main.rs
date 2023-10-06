@@ -3,16 +3,14 @@
 use anyhow::{anyhow, bail, Context};
 use chrono::Datelike;
 use clap::Parser;
+use config::{Config, Section};
 use date::Date;
 use provider::WeatherInfo;
-use serde::Deserialize;
 use std::borrow::Cow;
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::str::FromStr;
-use toml::de::ValueDeserializer;
-use toml::Value;
 
 use crate::provider::openweather::OpenWeather;
 use crate::provider::weatherapi::WeatherApi;
@@ -93,14 +91,14 @@ fn date_now() -> Date {
 ///
 /// # Returns
 /// Parsed configuration as TOML table and path to it
-async fn read_config(path: Option<PathBuf>) -> anyhow::Result<(toml::Table, PathBuf)> {
+async fn read_config(path: Option<PathBuf>) -> anyhow::Result<(Config, PathBuf)> {
     // Fetch path to config file
     let config_path = if let Some(path) = path {
         path
     } else if let Some(path) = dirs::config_dir() {
-        path.join("weather-cli").join("config.toml")
+        path.join("weather-cli").join("config.ini")
     } else if let Some(path) = dirs::home_dir() {
-        path.join(".weather-cli.toml")
+        path.join(".weather-cli.ini")
     } else {
         bail!(
             "Current OS doesn't seem to have notion of either user's config directory or user's home directory. Please use explicit '--config' argument"
@@ -112,7 +110,7 @@ async fn read_config(path: Option<PathBuf>) -> anyhow::Result<(toml::Table, Path
         let contents = tokio::fs::read_to_string(&config_path)
             .await
             .with_context(|| anyhow!("When reading config file '{}'", config_path.display()))?;
-        toml::from_str(&contents)
+        Config::from_str(&contents)
             .with_context(|| anyhow!("When parsing config file '{}'", config_path.display()))?
     } else if config_path.exists() {
         bail!(
@@ -120,7 +118,7 @@ async fn read_config(path: Option<PathBuf>) -> anyhow::Result<(toml::Table, Path
             config_path.display()
         )
     } else {
-        toml::Table::new()
+        Config::new()
     };
 
     Ok((config, config_path))
@@ -130,7 +128,7 @@ async fn read_config(path: Option<PathBuf>) -> anyhow::Result<(toml::Table, Path
 /// # Parameters
 /// * `config` - configuration object
 /// * `path` - path where to write configuration
-async fn write_config(config: toml::Table, path: impl AsRef<Path>) -> anyhow::Result<()> {
+async fn write_config(config: &Config, path: impl AsRef<Path>) -> anyhow::Result<()> {
     let config_path = path.as_ref();
     // Write config back to file
     if !config_path.is_file() {
@@ -150,18 +148,14 @@ async fn write_config(config: toml::Table, path: impl AsRef<Path>) -> anyhow::Re
             })?;
     }
 
-    tokio::fs::write(
-        &config_path,
-        toml::to_string_pretty(&config)
-            .with_context(|| anyhow!("When serializing configuration data"))?,
-    )
-    .await
-    .with_context(|| anyhow!("When writing configuration to {}", config_path.display()))
+    tokio::fs::write(&config_path, config.to_string())
+        .await
+        .with_context(|| anyhow!("When writing configuration to {}", config_path.display()))
 }
 /// Configures specified provider, either with provided key-value parameters or interactively
 async fn configure_provider(
     registry: &ProviderRegistry,
-    config: &mut toml::Table,
+    config: &mut Config,
     provider: String,
     parameters: Vec<String>,
 ) -> anyhow::Result<()> {
@@ -174,23 +168,21 @@ async fn configure_provider(
         bail!("Sorry, interactive mode not implemented yet");
     }
     // Generate new config
-    let mut new_config = toml::Table::new();
+    let mut new_config = Section::new();
 
     for param in parameters {
         let (name, value) = param.split_once('=').ok_or_else(|| {
             anyhow!("Argument '{param}' cannot be parsed as '<name>=<value>' parameter")
         })?;
-        let value = toml::Value::deserialize(ValueDeserializer::new(value))
-            .with_context(|| anyhow!("When parsing value of parameter {param}"))?;
 
-        new_config.insert(name.to_string(), value);
+        new_config.insert(name.to_string(), value.to_string());
     }
     // Perform simple request to check configuration is actually valid
     {
         let prov_config_error = || || anyhow!("When configuring {provider}");
 
         let provider = factory
-            .create(new_config.clone().into())
+            .create(&new_config)
             .with_context(prov_config_error())?;
 
         let _ = provider
@@ -200,17 +192,17 @@ async fn configure_provider(
     }
     // If check succeeded, write new config entry; if config was empty prior to first configure,
     // set new provider as default one
-    if config.is_empty() {
-        config.insert(ACTIVE_ENTRY.into(), provider.clone().into());
+    if config.sections.is_empty() {
+        config.globals.insert(ACTIVE_ENTRY.into(), provider.clone());
     }
-    config.insert(provider, new_config.into());
+    config.sections.insert(provider, new_config);
 
     Ok(())
 }
 /// Gets weather forecast using specified provider
 async fn get_forecast(
     registry: &ProviderRegistry,
-    config: &mut toml::Table,
+    config: &mut Config,
     address: String,
     date: String,
     provider: Option<String>,
@@ -220,14 +212,11 @@ async fn get_forecast(
     let provider_name = if let Some(provider) = provider {
         provider
     } else {
-        let entry = config.get(ACTIVE_ENTRY)
+        config.globals.get(ACTIVE_ENTRY)
             .ok_or_else(|| anyhow!(
                 "Active provider not specified. Please use `-sp <provider_name>` to specify new default one"
-            ))?;
-
-        entry.as_str().ok_or_else(|| anyhow!(
-            "Invalid config entry! Please set new current provider manually via `-sp <provider_name>`")
-        )?.to_string()
+            ))?
+            .clone()
     };
     // Create factory
     let factory = registry
@@ -235,11 +224,12 @@ async fn get_forecast(
         .ok_or_else(|| anyhow!("No such provider: {provider_name}"))?;
     // Get provider's config
     let prov_config = config
+        .sections
         .get(provider_name.as_str())
         .ok_or_else(|| anyhow!("Missing config for provider '{provider_name}'"))?;
     // Spawn provider
     let provider = factory
-        .create(prov_config.clone())
+        .create(prov_config)
         .with_context(|| anyhow!("When trying to construct provider '{provider_name}'"))?;
     // Parse date
     let date = if date == "now" {
@@ -254,7 +244,9 @@ async fn get_forecast(
         .with_context(|| anyhow!("When performing forecast request"))?;
     // Set provider as default - if requested
     if set_default {
-        config.insert(ACTIVE_ENTRY.to_string(), provider_name.into());
+        config
+            .globals
+            .insert(ACTIVE_ENTRY.to_string(), provider_name);
     }
 
     Ok(result)
@@ -262,7 +254,7 @@ async fn get_forecast(
 
 fn clear_providers(
     registry: &ProviderRegistry,
-    config: &mut toml::Table,
+    config: &mut Config,
     providers: Vec<String>,
 ) -> anyhow::Result<()> {
     // Walk all mentioned providers and remove them
@@ -270,19 +262,19 @@ fn clear_providers(
         // "all" means all providers
         if prov_name == "all" {
             for name in registry.keys() {
-                config.remove(name.as_ref());
+                config.sections.remove(name.as_ref());
             }
         } else if registry.contains_key(prov_name.as_str()) {
-            config.remove(prov_name);
+            config.sections.remove(prov_name);
         } else {
             bail!("No such provider: {prov_name}");
         }
     }
     // If there's default entry, and default provider isn't registered,
     // clear it
-    if let Some(Value::String(default_entry)) = config.get(ACTIVE_ENTRY) {
-        if !config.contains_key(default_entry.as_str()) {
-            config.remove(ACTIVE_ENTRY);
+    if let Some(default_entry) = config.globals.get(ACTIVE_ENTRY) {
+        if !config.sections.contains_key(default_entry.as_str()) {
+            config.globals.remove(ACTIVE_ENTRY);
         }
     }
 
@@ -322,7 +314,7 @@ async fn main() -> anyhow::Result<()> {
         CliCmd::Clear { providers } => clear_providers(&registry, &mut config, providers)?,
     }
 
-    write_config(config, config_path).await?;
+    write_config(&config, config_path).await?;
     // End of processing
     Ok(())
 }
