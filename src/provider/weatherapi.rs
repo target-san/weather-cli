@@ -1,4 +1,5 @@
-use crate::{BoxFuture, CowString};
+use crate::{date_now, BoxFuture, CowString};
+use anyhow::{anyhow, Context};
 use serde::Deserialize;
 use toml::value::Date;
 
@@ -35,8 +36,13 @@ impl super::Provider for WeatherApi {
         todo!()
     }
 
-    fn get_weather(&self, location: CowString, date: Date) -> BoxFuture<anyhow::Result<String>> {
+    fn get_weather(
+        &self,
+        location: CowString,
+        date: Option<Date>,
+    ) -> BoxFuture<anyhow::Result<String>> {
         let apikey = &self.apikey;
+        let date = date.unwrap_or_else(date_now);
         let url = format!(
             "http://api.weatherapi.com/v1/history.json?key={apikey}&q={location}&dt={}-{}-{}",
             date.year, date.month, date.day
@@ -45,10 +51,11 @@ impl super::Provider for WeatherApi {
             let response = reqwest::get(url).await?;
 
             let is_ok = response.status().is_success();
+            let code = response.status().as_u16();
             let text = response
                 .text()
                 .await
-                .map_err::<anyhow::Error, _>(Into::into)?;
+                .with_context(|| anyhow!("Could not obtain response text"))?;
 
             if is_ok {
                 Ok(serde_json::to_string_pretty(&serde_json::from_str::<
@@ -57,8 +64,9 @@ impl super::Provider for WeatherApi {
             } else {
                 let ApiError {
                     error: ApiErrorInner { code, message },
-                } = serde_json::from_str(&text)?;
-                Err(anyhow::anyhow!("API call error {code}: {message}"))
+                } = serde_json::from_str(&text)
+                    .with_context(|| anyhow!("Could not parse API error, HTTP code {code}"))?;
+                Err(anyhow!("API call error {code}: {message}"))
             }
         };
         Box::pin(fut)

@@ -190,7 +190,7 @@ async fn configure_provider(
             .with_context(prov_config_error())?;
 
         let _ = provider
-            .get_weather(DEFAULT_CONFIGURE_LOCATION.into(), date_now())
+            .get_weather(DEFAULT_CONFIGURE_LOCATION.into(), None)
             .await
             .with_context(prov_config_error())?;
     }
@@ -204,14 +204,13 @@ async fn configure_provider(
     Ok(())
 }
 /// Gets weather forecast using specified provider
-#[allow(unused)]
 async fn get_forecast(
     registry: &ProviderRegistry,
-    config: &mut toml::Table,
+    config: &toml::Table,
     address: String,
     date: String,
     provider: Option<String>,
-    set_default: bool,
+    _set_default: bool,
 ) -> anyhow::Result<String> {
     // Fetch actual provider name
     let provider_name = if let Some(provider) = provider {
@@ -240,15 +239,19 @@ async fn get_forecast(
         .with_context(|| anyhow!("When trying to construct provider '{provider_name}'"))?;
     // Parse date
     let date = if date == "now" {
-        date_now()
+        None
     } else {
-        toml::value::Datetime::from_str(&date)
+        let date = toml::value::Datetime::from_str(&date)
             .with_context(|| anyhow!("When parsing forecast date"))?
             .date
-            .ok_or_else(|| anyhow!("Missing actual forecast date"))?
+            .ok_or_else(|| anyhow!("Missing actual forecast date"))?;
+        Some(date)
     };
 
-    provider.get_weather(address.into(), date).await
+    provider
+        .get_weather(address.into(), date)
+        .await
+        .with_context(|| anyhow!("When performing forecast request"))
 }
 
 fn clear_providers(
@@ -296,7 +299,10 @@ async fn main() -> anyhow::Result<()> {
         CliCmd::Configure {
             provider,
             parameters,
-        } => configure_provider(&registry, &mut config, provider, parameters).await?,
+        } => {
+            configure_provider(&registry, &mut config, provider.clone(), parameters).await?;
+            println!("Successfully configured provider '{provider}'");
+        }
         CliCmd::Get {
             address,
             date,
@@ -304,32 +310,11 @@ async fn main() -> anyhow::Result<()> {
             set_default,
         } => {
             let forecast =
-                get_forecast(&registry, &mut config, address, date, provider, set_default).await?;
+                get_forecast(&registry, &config, address, date, provider, set_default).await?;
             println!("{forecast}");
         }
         CliCmd::Clear { providers } => clear_providers(&registry, &mut config, providers)?,
     }
-
-    // let stub_config = toml::toml! {
-    //     apikey = "banana"
-    // }
-    // .into();
-
-    // let prov = registry
-    //     .get("weatherapi")
-    //     .ok_or_else(|| anyhow::anyhow!("No such provider"))?
-    //     .create(stub_config)?;
-
-    // let forecast = prov
-    //     .read_weather(
-    //         // Approx location of London
-    //         51.5072,
-    //         0.1275,
-    //         date_now(),
-    //     )
-    //     .await?;
-
-    // println!("{forecast}");
 
     write_config(config, config_path).await?;
     // End of processing
