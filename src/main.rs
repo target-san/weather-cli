@@ -5,7 +5,7 @@ use chrono::Datelike;
 use clap::Parser;
 use serde::Deserialize;
 use std::future::Future;
-use std::path::{PathBuf, Path};
+use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use toml::de::ValueDeserializer;
 use toml::value::Date;
@@ -67,7 +67,7 @@ enum CliCmd {
     },
 }
 /// Get today's date as TOML `Date`
-/// 
+///
 /// # Returns
 /// Today's date as TOML `Date` object
 fn date_now() -> Date {
@@ -79,10 +79,10 @@ fn date_now() -> Date {
     }
 }
 /// Read app's configuration at specified path; if path isn't provided, default config path is used
-/// 
+///
 /// # Parameters
 /// * `path` - optional config path
-/// 
+///
 /// # Returns
 /// Parsed configuration as TOML table and path to it
 async fn read_config(path: Option<PathBuf>) -> anyhow::Result<(toml::Table, PathBuf)> {
@@ -118,7 +118,7 @@ async fn read_config(path: Option<PathBuf>) -> anyhow::Result<(toml::Table, Path
     Ok((config, config_path))
 }
 /// Writes app's configuration at specified path
-/// 
+///
 /// # Parameters
 /// * `config` - configuration object
 /// * `path` - path where to write configuration
@@ -151,6 +151,77 @@ async fn write_config(config: toml::Table, path: impl AsRef<Path>) -> anyhow::Re
     .with_context(|| anyhow!("When writing configuration to {}", config_path.display()))
 }
 
+async fn configure_provider(
+    registry: &ProviderRegistry,
+    config: &mut toml::Table,
+    provider: String,
+    parameters: Vec<String>,
+) -> anyhow::Result<()> {
+    // Check that provider is valid and get factory
+    let factory = registry
+        .get(provider.as_str())
+        .ok_or_else(|| anyhow!("No such provider: {provider}"))?;
+    // Interactive configuration: TODO
+    if parameters.is_empty() {
+        bail!("Sorry, interactive mode not implemented yet");
+    }
+    // Generate new config
+    let mut new_config = toml::Table::new();
+
+    for param in parameters {
+        let (name, value) = param.split_once('=').ok_or_else(|| {
+            anyhow!("Argument '{param}' cannot be parsed as '<name>=<value>' parameter")
+        })?;
+        let value = toml::Value::deserialize(ValueDeserializer::new(value))
+            .with_context(|| anyhow!("When parsing value of parameter {param}"))?;
+
+        new_config.insert(name.to_string(), value);
+    }
+    // Perform simple request to check configuration is actually valid
+    {
+        let prov_config_error = || || anyhow!("When configuring {provider}");
+
+        let provider = factory
+            .create(new_config.clone().into())
+            .with_context(prov_config_error())?;
+
+        let _ = provider
+            .read_weather(DEFAULT_LATTITUDE, DEFAULT_LONGITUDE, date_now())
+            .await
+            .with_context(prov_config_error())?;
+    }
+    // If check succeeded, write new config entry; if config was empty prior to first configure,
+    // set new provider as default one
+    if config.is_empty() {
+        config.insert("default".into(), provider.clone().into());
+    }
+    config.insert(provider, new_config.into());
+
+    Ok(())
+}
+
+fn clear_providers(
+    registry: &ProviderRegistry,
+    config: &mut toml::Table,
+    providers: Vec<String>,
+) -> anyhow::Result<()> {
+    // Walk all mentioned providers and remove them
+    for prov_name in &providers {
+        // "all" means all providers
+        if prov_name == "all" {
+            for name in registry.keys() {
+                config.remove(name.as_ref());
+            }
+        } else if registry.contains_key(prov_name.as_str()) {
+            config.remove(prov_name);
+        } else {
+            bail!("No such provider: {prov_name}");
+        }
+    }
+
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // Parse command line arguments
@@ -167,68 +238,14 @@ async fn main() -> anyhow::Result<()> {
         CliCmd::Configure {
             provider,
             parameters,
-        } => {
-            // Check that provider is valid and get factory
-            let factory = registry
-                .get(provider.as_str())
-                .ok_or_else(|| anyhow!("No such provider: {provider}"))?;
-            // Interactive configuration: TODO
-            if parameters.is_empty() {
-                bail!("Sorry, interactive mode not implemented yet");
-            }
-            // Generate new config
-            let mut new_config = toml::Table::new();
-
-            for param in parameters {
-                let (name, value) = param.split_once('=').ok_or_else(|| {
-                    anyhow!("Argument '{param}' cannot be parsed as '<name>=<value>' parameter")
-                })?;
-                let value = toml::Value::deserialize(ValueDeserializer::new(value))
-                    .with_context(|| anyhow!("When parsing value of parameter {param}"))?;
-
-                new_config.insert(name.to_string(), value);
-            }
-            // Perform simple request to check configuration is actually valid
-            {
-                let prov_config_error = || || anyhow!("When configuring {provider}");
-
-                let provider = factory
-                    .create(new_config.clone().into())
-                    .with_context(prov_config_error())?;
-
-                let _ = provider
-                    .read_weather(DEFAULT_LATTITUDE, DEFAULT_LONGITUDE, date_now())
-                    .await
-                    .with_context(prov_config_error())?;
-            }
-            // If check succeeded, write new config entry; if config was empty prior to first configure,
-            // set new provider as default one
-            if config.is_empty() {
-                config.insert("default".into(), provider.clone().into());
-            }
-            config.insert(provider, new_config.into());
-        }
+        } => configure_provider(&registry, &mut config, provider, parameters).await?,
         CliCmd::Get {
             address: _,
             date: _,
             provider: _,
             set_default: _,
         } => (),
-        CliCmd::Clear { providers } => {
-            // Walk all mentioned providers and remove them
-            for prov_name in &providers {
-                // "all" means all providers
-                if prov_name == "all" {
-                    for name in registry.keys() {
-                        config.remove(name.as_ref());
-                    }
-                } else if registry.contains_key(prov_name.as_str()) {
-                    config.remove(prov_name);
-                } else {
-                    bail!("No such provider: {prov_name}");
-                }
-            }
-        }
+        CliCmd::Clear { providers } => clear_providers(&registry, &mut config, providers)?,
     }
 
     // let stub_config = toml::toml! {
