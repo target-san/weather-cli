@@ -18,6 +18,7 @@ use crate::provider::openweather::OpenWeather;
 use crate::provider::weatherapi::WeatherApi;
 use crate::provider_registry::ProviderRegistry;
 
+mod config;
 mod date;
 mod provider;
 mod provider_registry;

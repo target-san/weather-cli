@@ -578,6 +578,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9cdc71e17332e86d2e1d38c1f99edcb6288ee11b815fb1a4b049eaa2114d369b"
 
 [[package]]
+name = "light-ini"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4228022e28ce8f1da6127a89222ca6551a86d46b57d78a78f0d8967fd1e4fe07"
+
+[[package]]
 name = "linux-raw-sys"
 version = "0.4.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1363,6 +1369,7 @@ dependencies = [
  "chrono",
  "clap",
  "dirs",
+ "light-ini",
  "reqwest",
  "serde",
  "serde_json",
