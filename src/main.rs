@@ -3,6 +3,7 @@
 use anyhow::{anyhow, bail, Context};
 use chrono::Datelike;
 use clap::Parser;
+use provider::WeatherInfo;
 use serde::Deserialize;
 use std::borrow::Cow;
 use std::future::Future;
@@ -211,7 +212,7 @@ async fn get_forecast(
     date: String,
     provider: Option<String>,
     set_default: bool,
-) -> anyhow::Result<String> {
+) -> anyhow::Result<WeatherInfo> {
     // Fetch actual provider name
     let provider_name = if let Some(provider) = provider {
         provider

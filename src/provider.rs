@@ -1,9 +1,57 @@
+use std::fmt::Display;
+
 use toml::value::Date;
 
 use crate::{BoxFuture, CowString};
 
 pub mod openweather;
 pub mod weatherapi;
+/// Describes kind of weather - clear sky, clouds present or raining
+#[derive(Debug)]
+pub enum WeatherKind {
+    Unknown,
+    Clear,
+    Clouds,
+    Rain,
+    Snow,
+}
+
+impl Display for WeatherKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let desc = match self {
+            WeatherKind::Unknown => "unknown",
+            WeatherKind::Clear => "clear",
+            WeatherKind::Clouds => "clouds",
+            WeatherKind::Rain => "raining",
+            WeatherKind::Snow => "snow",
+        };
+        f.write_str(desc)
+    }
+}
+/// Weather information
+#[derive(Debug)]
+pub struct WeatherInfo {
+    /// What kind of weather
+    pub weather: WeatherKind,
+    /// Temperature, in Celsius degrees
+    pub temperature: f32,
+    /// Wind speed, in m/s
+    pub wind_speed: f32,
+    /// Humidity, in percents, 0..=100
+    pub humidity: f32,
+}
+
+impl Display for WeatherInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!(
+            "Weather: {}\nTemperature: {}°C\nWind speed: {} m/s\nHumidity: {}%",
+            self.weather,
+            self.temperature,
+            self.wind_speed,
+            self.humidity
+        ))
+    }
+}
 
 /// Defines any provider of weather data
 ///
@@ -33,5 +81,5 @@ pub trait Provider {
         &self,
         location: CowString,
         date: Option<Date>,
-    ) -> BoxFuture<anyhow::Result<String>>;
+    ) -> BoxFuture<anyhow::Result<WeatherInfo>>;
 }

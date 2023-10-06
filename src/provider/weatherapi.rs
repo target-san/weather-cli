@@ -1,7 +1,9 @@
 use crate::{date_now, BoxFuture, CowString};
-use anyhow::{anyhow, Context};
+use anyhow::{anyhow, bail, Context};
 use serde::Deserialize;
 use toml::value::Date;
+
+use super::{WeatherInfo, WeatherKind};
 
 pub struct WeatherApi {
     apikey: String,
@@ -36,7 +38,7 @@ impl super::Provider for WeatherApi {
         &self,
         location: CowString,
         date: Option<Date>,
-    ) -> BoxFuture<anyhow::Result<String>> {
+    ) -> BoxFuture<anyhow::Result<WeatherInfo>> {
         let apikey = &self.apikey;
         let date = date.unwrap_or_else(date_now);
         let url = format!(
@@ -53,17 +55,20 @@ impl super::Provider for WeatherApi {
                 .await
                 .with_context(|| anyhow!("Could not obtain response text"))?;
 
-            if is_ok {
-                Ok(serde_json::to_string_pretty(&serde_json::from_str::<
-                    serde_json::Value,
-                >(&text)?)?)
-            } else {
+            if !is_ok {
                 let ApiError {
                     error: ApiErrorInner { code, message },
                 } = serde_json::from_str(&text)
                     .with_context(|| anyhow!("Could not parse API error, HTTP code {code}"))?;
-                Err(anyhow!("API call error {code}: {message}"))
+                bail!("API call error {code}: {message}");
             }
+
+            Ok(WeatherInfo {
+                weather: WeatherKind::Clear,
+                temperature: 0.0,
+                wind_speed: 0.0,
+                humidity: 0.0,
+            })
         };
         Box::pin(fut)
     }

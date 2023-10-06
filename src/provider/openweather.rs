@@ -3,6 +3,8 @@ use anyhow::{anyhow, bail, Context};
 use serde::Deserialize;
 use toml::value::Date;
 
+use super::{WeatherInfo, WeatherKind};
+
 pub struct OpenWeather {
     apikey: String,
 }
@@ -24,6 +26,29 @@ struct Coords {
     lon: f64,
 }
 
+#[derive(Deserialize)]
+struct RawResponse {
+    main: MainSection,
+    wind: WindSection,
+    weather: Vec<WeatherSection>,
+}
+
+#[derive(Deserialize)]
+struct MainSection {
+    temp: f32,
+    humidity: f32,
+}
+
+#[derive(Deserialize)]
+struct WindSection {
+    speed: f32,
+}
+
+#[derive(Deserialize)]
+struct WeatherSection {
+    id: u32,
+}
+
 impl super::Provider for OpenWeather {
     fn new(config: toml::Value) -> anyhow::Result<Self>
     where
@@ -37,7 +62,7 @@ impl super::Provider for OpenWeather {
         &self,
         location: CowString,
         date: Option<Date>,
-    ) -> BoxFuture<anyhow::Result<String>> {
+    ) -> BoxFuture<anyhow::Result<WeatherInfo>> {
         let apikey = &self.apikey;
         if date.is_some() {
             return Box::pin(async {
@@ -50,7 +75,7 @@ impl super::Provider for OpenWeather {
             "https://api.openweathermap.org/geo/1.0/direct?q={location}&limit=1&appid={apikey}"
         );
 
-        let data_url = format!("https://api.openweathermap.org/data/2.5/weather?appid={apikey}");
+        let data_url = format!("https://api.openweathermap.org/data/2.5/weather?appid={apikey}&units=metric");
         let fut = async move {
             // Transform location into coordinates
             let response = reqwest::get(location_url)
@@ -99,11 +124,32 @@ impl super::Provider for OpenWeather {
                 bail!("API error {cod}: {message}");
             }
 
-            let value = serde_json::from_str::<serde_json::Value>(&text)
-                .with_context(|| anyhow!("Could not parse response as JSON"))?;
+            let resp: RawResponse =
+                serde_json::from_str(&text).with_context(|| {
+                    eprintln!("{text}");
+                    anyhow!("Could not parse response")
+                })?;
+            // Primitive weather resolver = fetch first entry, otherwise unknown
+            let weather = if let Some(weather) = resp.weather.first() {
+                // Use weather condition codes form https://openweathermap.org/weather-conditions
+                match weather.id {
+                    200..=299 | 300..=399 | 500..=599 => WeatherKind::Rain,
+                    600..=699 => WeatherKind::Snow,
+                    800 => WeatherKind::Clear,
+                    700..=799 | 801..=809 => WeatherKind::Clouds,
+                    _ => WeatherKind::Unknown,
+                }
+            }
+            else {
+                WeatherKind::Unknown
+            };
 
-            serde_json::to_string_pretty(&value)
-                .with_context(|| anyhow!("Could not write JSON to string"))
+            Ok(WeatherInfo {
+                weather,
+                temperature: resp.main.temp,
+                wind_speed: resp.wind.speed,
+                humidity: resp.main.humidity,
+            })
         };
         Box::pin(fut)
     }
