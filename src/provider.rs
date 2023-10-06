@@ -12,6 +12,7 @@ pub enum WeatherKind {
     Unknown,
     Clear,
     Clouds,
+    Fog,
     Rain,
     Snow,
 }
@@ -22,6 +23,7 @@ impl Display for WeatherKind {
             WeatherKind::Unknown => "unknown",
             WeatherKind::Clear => "clear",
             WeatherKind::Clouds => "clouds",
+            WeatherKind::Fog => "fog",
             WeatherKind::Rain => "raining",
             WeatherKind::Snow => "snow",
         };

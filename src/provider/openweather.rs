@@ -125,10 +125,7 @@ impl super::Provider for OpenWeather {
             }
 
             let resp: RawResponse =
-                serde_json::from_str(&text).with_context(|| {
-                    eprintln!("{text}");
-                    anyhow!("Could not parse response")
-                })?;
+                serde_json::from_str(&text).with_context(|| anyhow!("Could not parse response"))?;
             // Primitive weather resolver = fetch first entry, otherwise unknown
             let weather = if let Some(weather) = resp.weather.first() {
                 // Use weather condition codes form https://openweathermap.org/weather-conditions
@@ -136,7 +133,8 @@ impl super::Provider for OpenWeather {
                     200..=299 | 300..=399 | 500..=599 => WeatherKind::Rain,
                     600..=699 => WeatherKind::Snow,
                     800 => WeatherKind::Clear,
-                    700..=799 | 801..=809 => WeatherKind::Clouds,
+                    801..=809 => WeatherKind::Clouds,
+                    700..=799 => WeatherKind::Fog,
                     _ => WeatherKind::Unknown,
                 }
             }
