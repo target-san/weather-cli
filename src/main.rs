@@ -190,7 +190,7 @@ async fn configure_provider(
             .with_context(prov_config_error())?;
 
         let _ = provider
-            .read_weather(DEFAULT_CONFIGURE_LOCATION.into(), date_now())
+            .get_weather(DEFAULT_CONFIGURE_LOCATION.into(), date_now())
             .await
             .with_context(prov_config_error())?;
     }
@@ -248,7 +248,7 @@ async fn get_forecast(
             .ok_or_else(|| anyhow!("Missing actual forecast date"))?
     };
 
-    provider.read_weather(address.into(), date).await
+    provider.get_weather(address.into(), date).await
 }
 
 fn clear_providers(

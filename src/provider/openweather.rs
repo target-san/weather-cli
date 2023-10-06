@@ -30,7 +30,7 @@ impl super::Provider for OpenWeather {
         todo!()
     }
 
-    fn read_weather(&self, _location: CowString, date: Date) -> BoxFuture<anyhow::Result<String>> {
+    fn get_weather(&self, _location: CowString, date: Date) -> BoxFuture<anyhow::Result<String>> {
         let apikey = &self.apikey;
         // TODO: use geolocation service
         let lat = 42.0;

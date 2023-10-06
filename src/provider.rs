@@ -40,5 +40,5 @@ pub trait Provider {
     ///
     /// # Returns
     /// Boxed future which completes with forecast data or error
-    fn read_weather(&self, location: CowString, date: Date) -> BoxFuture<anyhow::Result<String>>;
+    fn get_weather(&self, location: CowString, date: Date) -> BoxFuture<anyhow::Result<String>>;
 }

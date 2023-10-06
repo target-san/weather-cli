@@ -35,7 +35,7 @@ impl super::Provider for WeatherApi {
         todo!()
     }
 
-    fn read_weather(&self, location: CowString, date: Date) -> BoxFuture<anyhow::Result<String>> {
+    fn get_weather(&self, location: CowString, date: Date) -> BoxFuture<anyhow::Result<String>> {
         let apikey = &self.apikey;
         let url = format!(
             "http://api.weatherapi.com/v1/history.json?key={apikey}&q={location}&dt={}-{}-{}",
