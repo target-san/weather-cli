@@ -42,21 +42,23 @@ impl super::Provider for WeatherApi {
             date.year, date.month, date.day
         );
         let fut = async {
-            let text = reqwest::get(url)
-                .await?
+            let response = reqwest::get(url).await?;
+
+            let is_ok = response.status().is_success();
+            let text = response
                 .text()
                 .await
                 .map_err::<anyhow::Error, _>(Into::into)?;
 
-            if let Ok(ApiError {
-                error: ApiErrorInner { code, message },
-            }) = serde_json::from_str(&text)
-            {
-                Err(anyhow::anyhow!("API call error {code}: {message}"))
-            } else {
+            if is_ok {
                 Ok(serde_json::to_string_pretty(&serde_json::from_str::<
                     serde_json::Value,
                 >(&text)?)?)
+            } else {
+                let ApiError {
+                    error: ApiErrorInner { code, message },
+                } = serde_json::from_str(&text)?;
+                Err(anyhow::anyhow!("API call error {code}: {message}"))
             }
         };
         Box::pin(fut)
