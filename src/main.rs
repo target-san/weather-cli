@@ -4,6 +4,7 @@ use anyhow::{anyhow, bail, Context};
 use chrono::Datelike;
 use clap::Parser;
 use serde::Deserialize;
+use std::borrow::Cow;
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
@@ -18,11 +19,9 @@ mod provider;
 mod provider_registry;
 /// Used as shortcut alias for any boxed future
 type BoxFuture<T> = Pin<Box<dyn Future<Output = T>>>;
+type CowString = Cow<'static, str>;
 
-/// Default lattitude used to verify config validity, approx. lattitude of London
-const DEFAULT_LATTITUDE: f64 = 51.5072;
-/// Default longitude used to verify config validity, approx. longitude of London
-const DEFAULT_LONGITUDE: f64 = 0.1275;
+const DEFAULT_CONFIGURE_LOCATION: &str = "London";
 
 /// Command-line client for weather forecast services
 #[derive(clap::Parser)]
@@ -186,7 +185,7 @@ async fn configure_provider(
             .with_context(prov_config_error())?;
 
         let _ = provider
-            .read_weather(DEFAULT_LATTITUDE, DEFAULT_LONGITUDE, date_now())
+            .read_weather(DEFAULT_CONFIGURE_LOCATION.into(), date_now())
             .await
             .with_context(prov_config_error())?;
     }

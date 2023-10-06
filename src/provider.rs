@@ -1,10 +1,11 @@
 use toml::value::Date;
 
-use crate::BoxFuture;
+use crate::{BoxFuture, CowString};
 use std::fmt::{self, Formatter};
 
 pub mod openweather;
 pub mod weatherapi;
+
 /// Defines any provider of weather data
 ///
 /// NB: Futures can be unboxed when async traits arrive
@@ -32,13 +33,12 @@ pub trait Provider {
     /// Fetches weather information asynchronously at specified location and UNIX timestamp
     ///
     /// # Parameters
-    /// * `lat` - lattitude, in range `-90..=90`
-    /// * `lon` - longitude, in range `-180..=180`
+    /// * `location` - name of location for which forecast is required;
+    ///     provider would usually use some geolocation service
     /// * `date` - day when weather forecast is needed;
-    ///     limitations on future forecasting depend on concrete provider;
-    ///     providers usually attempt to get weather at specified day's noon at specified location
+    ///     limitations on future forecasting depend on concrete provider
     ///
     /// # Returns
     /// Boxed future which completes with forecast data or error
-    fn read_weather(&self, lat: f64, lon: f64, date: Date) -> BoxFuture<anyhow::Result<String>>;
+    fn read_weather(&self, location: CowString, date: Date) -> BoxFuture<anyhow::Result<String>>;
 }

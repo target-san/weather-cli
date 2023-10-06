@@ -1,4 +1,4 @@
-use crate::BoxFuture;
+use crate::{BoxFuture, CowString};
 use serde::Deserialize;
 use toml::value::Date;
 
@@ -30,8 +30,11 @@ impl super::Provider for OpenWeather {
         todo!()
     }
 
-    fn read_weather(&self, lat: f64, lon: f64, date: Date) -> BoxFuture<anyhow::Result<String>> {
+    fn read_weather(&self, _location: CowString, date: Date) -> BoxFuture<anyhow::Result<String>> {
         let apikey = &self.apikey;
+        // TODO: use geolocation service
+        let lat = 42.0;
+        let lon = 42.0;
         let url = format!(
             "https://api.openweathermap.org/data/3.0/onecall/timemachine?lat={lat}&lon={lon}&dt={}-{}-{}&appid={apikey}",
             date.year, date.month, date.day

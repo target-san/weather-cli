@@ -1,20 +1,20 @@
-use std::borrow::Cow;
 use std::collections::btree_map::Entry as BTreeEntry;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::marker::PhantomData;
 use std::ops::Deref;
 
+use crate::CowString;
 use crate::provider::Provider;
 
 pub struct ProviderRegistry {
     /// Map of registered providers.
     /// `BTreeMap` is used to have nice alphabetic order when printing help text
-    providers: BTreeMap<Cow<'static, str>, Box<dyn ProviderFactory>>,
+    providers: BTreeMap<CowString, Box<dyn ProviderFactory>>,
 }
 
 impl Deref for ProviderRegistry {
-    type Target = BTreeMap<Cow<'static, str>, Box<dyn ProviderFactory>>;
+    type Target = BTreeMap<CowString, Box<dyn ProviderFactory>>;
 
     fn deref(&self) -> &Self::Target {
         &self.providers
@@ -42,8 +42,8 @@ impl ProviderRegistry {
     /// # Panics
     /// If provider with such name is already registered since it's a clear programmer's error,
     /// not user's one
-    pub fn add_provider<T: Provider + 'static>(&mut self, name: impl Into<Cow<'static, str>>) {
-        let name: Cow<'static, str> = name.into();
+    pub fn add_provider<T: Provider + 'static>(&mut self, name: impl Into<CowString>) {
+        let name: CowString = name.into();
         match self.providers.entry(name) {
             BTreeEntry::Vacant(e) => {
                 e.insert(Box::new(ProviderFactoryT::<T>::new()));
