@@ -1,10 +1,13 @@
 #![deny(warnings)]
 
+use anyhow::{anyhow, bail, Context};
 use chrono::Datelike;
 use clap::Parser;
+use serde::Deserialize;
 use std::future::Future;
-use std::path::PathBuf;
+use std::path::{PathBuf, Path};
 use std::pin::Pin;
+use toml::de::ValueDeserializer;
 use toml::value::Date;
 
 use crate::provider::openweather::OpenWeather;
@@ -15,6 +18,11 @@ mod provider;
 mod provider_registry;
 /// Used as shortcut alias for any boxed future
 type BoxFuture<T> = Pin<Box<dyn Future<Output = T>>>;
+
+/// Default lattitude used to verify config validity, approx. lattitude of London
+const DEFAULT_LATTITUDE: f64 = 51.5072;
+/// Default longitude used to verify config validity, approx. longitude of London
+const DEFAULT_LONGITUDE: f64 = 0.1275;
 
 /// Command-line client for weather forecast services
 #[derive(clap::Parser)]
@@ -35,8 +43,8 @@ enum CliCmd {
     Configure {
         /// Name of provider to configure
         provider: String,
-        /// Configuration options specified as "<name>=<value>" arguments
-        options: Vec<String>,
+        /// Configuration parameters specified as "<name>=<value>" arguments
+        parameters: Vec<String>,
     },
     /// Get forecast data using specified provider
     Get {
@@ -59,6 +67,9 @@ enum CliCmd {
     },
 }
 /// Get today's date as TOML `Date`
+/// 
+/// # Returns
+/// Today's date as TOML `Date` object
 fn date_now() -> Date {
     let date = chrono::Local::now().date_naive();
     Date {
@@ -67,36 +78,85 @@ fn date_now() -> Date {
         day: date.day() as u8,
     }
 }
-
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
-    // Parse command line arguments
-    let Cli { config, command } = Cli::parse();
+/// Read app's configuration at specified path; if path isn't provided, default config path is used
+/// 
+/// # Parameters
+/// * `path` - optional config path
+/// 
+/// # Returns
+/// Parsed configuration as TOML table and path to it
+async fn read_config(path: Option<PathBuf>) -> anyhow::Result<(toml::Table, PathBuf)> {
     // Fetch path to config file
-    let config_path = if let Some(path) = config {
+    let config_path = if let Some(path) = path {
         path
     } else if let Some(path) = dirs::config_dir() {
         path.join("weather-cli").join("config.toml")
     } else if let Some(path) = dirs::home_dir() {
         path.join(".weather-cli.toml")
     } else {
-        anyhow::bail!(
+        bail!(
             "Current OS doesn't seem to have notion of either user's config directory or user's home directory. Please use explicit '--config' argument"
         )
     };
 
-    let config_path = config_path.canonicalize()?;
     // Read config file itself - if it exists
-    let mut config = if config_path.is_file() {
-        toml::from_str(&tokio::fs::read_to_string(&config_path).await?)?
+    let config = if config_path.is_file() {
+        let contents = tokio::fs::read_to_string(&config_path)
+            .await
+            .with_context(|| anyhow!("When reading config file '{}'", config_path.display()))?;
+        toml::from_str(&contents)
+            .with_context(|| anyhow!("When parsing config file '{}'", config_path.display()))?
     } else if config_path.exists() {
-        anyhow::bail!(
+        bail!(
             "Path '{}' exists yet points not to file",
             config_path.display()
         )
     } else {
         toml::Table::new()
     };
+
+    Ok((config, config_path))
+}
+/// Writes app's configuration at specified path
+/// 
+/// # Parameters
+/// * `config` - configuration object
+/// * `path` - path where to write configuration
+async fn write_config(config: toml::Table, path: impl AsRef<Path>) -> anyhow::Result<()> {
+    let config_path = path.as_ref();
+    // Write config back to file
+    if !config_path.is_file() {
+        let Some(config_dir_path) = config_path.parent() else {
+            // Config path points either to existing file
+            // or to some nonexistent location - so it cannot be just root path
+            // whose parent would be `None`
+            unreachable!()
+        };
+        tokio::fs::create_dir_all(config_dir_path)
+            .await
+            .with_context(|| {
+                anyhow!(
+                    "When creating config directory {}",
+                    config_dir_path.display()
+                )
+            })?;
+    }
+
+    tokio::fs::write(
+        &config_path,
+        toml::to_string_pretty(&config)
+            .with_context(|| anyhow!("When serializing configuration data"))?,
+    )
+    .await
+    .with_context(|| anyhow!("When writing configuration to {}", config_path.display()))
+}
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    // Parse command line arguments
+    let Cli { config, command } = Cli::parse();
+
+    let (mut config, config_path) = read_config(config).await?;
     // Fill in providers registry
     let mut registry = ProviderRegistry::new();
 
@@ -105,9 +165,49 @@ async fn main() -> anyhow::Result<()> {
     // Execute CLI command
     match command {
         CliCmd::Configure {
-            provider: _,
-            options: _,
-        } => (),
+            provider,
+            parameters,
+        } => {
+            // Check that provider is valid and get factory
+            let factory = registry
+                .get(provider.as_str())
+                .ok_or_else(|| anyhow!("No such provider: {provider}"))?;
+            // Interactive configuration: TODO
+            if parameters.is_empty() {
+                bail!("Sorry, interactive mode not implemented yet");
+            }
+            // Generate new config
+            let mut new_config = toml::Table::new();
+
+            for param in parameters {
+                let (name, value) = param.split_once('=').ok_or_else(|| {
+                    anyhow!("Argument '{param}' cannot be parsed as '<name>=<value>' parameter")
+                })?;
+                let value = toml::Value::deserialize(ValueDeserializer::new(value))
+                    .with_context(|| anyhow!("When parsing value of parameter {param}"))?;
+
+                new_config.insert(name.to_string(), value);
+            }
+            // Perform simple request to check configuration is actually valid
+            {
+                let prov_config_error = || || anyhow!("When configuring {provider}");
+
+                let provider = factory
+                    .create(new_config.clone().into())
+                    .with_context(prov_config_error())?;
+
+                let _ = provider
+                    .read_weather(DEFAULT_LATTITUDE, DEFAULT_LONGITUDE, date_now())
+                    .await
+                    .with_context(prov_config_error())?;
+            }
+            // If check succeeded, write new config entry; if config was empty prior to first configure,
+            // set new provider as default one
+            if config.is_empty() {
+                config.insert("default".into(), provider.clone().into());
+            }
+            config.insert(provider, new_config.into());
+        }
         CliCmd::Get {
             address: _,
             date: _,
@@ -122,46 +222,37 @@ async fn main() -> anyhow::Result<()> {
                     for name in registry.keys() {
                         config.remove(name.as_ref());
                     }
-                }
-                else if registry.contains_key(prov_name.as_str()) {
+                } else if registry.contains_key(prov_name.as_str()) {
                     config.remove(prov_name);
-                }
-                else {
-                    anyhow::bail!("No such provider: {prov_name}");
+                } else {
+                    bail!("No such provider: {prov_name}");
                 }
             }
-        },
+        }
     }
 
-    let stub_config = toml::toml! {
-        apikey = "banana"
-    }
-    .into();
+    // let stub_config = toml::toml! {
+    //     apikey = "banana"
+    // }
+    // .into();
 
-    let prov = registry
-        .get("weatherapi")
-        .ok_or_else(|| anyhow::anyhow!("No such provider"))?
-        .create(stub_config)?;
+    // let prov = registry
+    //     .get("weatherapi")
+    //     .ok_or_else(|| anyhow::anyhow!("No such provider"))?
+    //     .create(stub_config)?;
 
-    let forecast = prov
-        .read_weather(
-            // Approx location of London
-            51.5072,
-            0.1275,
-            date_now(),
-        )
-        .await?;
+    // let forecast = prov
+    //     .read_weather(
+    //         // Approx location of London
+    //         51.5072,
+    //         0.1275,
+    //         date_now(),
+    //     )
+    //     .await?;
 
-    println!("{forecast}");
-    // Write config back to file
-    if !config_path.is_file() {
-        // NB: unwrap here is safe, since config path points either to existing file
-        // or to some nonexistent location - so it cannot be just root path
-        // whose parent would be `None`
-        tokio::fs::create_dir_all(config_path.parent().unwrap()).await?;
-    }
+    // println!("{forecast}");
 
-    tokio::fs::write(&config_path, toml::to_string_pretty(&config)?).await?;
+    write_config(config, config_path).await?;
     // End of processing
     Ok(())
 }

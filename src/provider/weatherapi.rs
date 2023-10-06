@@ -41,7 +41,6 @@ impl super::Provider for WeatherApi {
             "http://api.weatherapi.com/v1/history.json?key={apikey}&q={lat:.4},{lon:.4}&dt={}-{}-{}",
             date.year, date.month, date.day
         );
-        println!("{url}");
         let fut = async {
             let text = reqwest::get(url)
                 .await?
