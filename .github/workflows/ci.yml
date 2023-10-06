@@ -38,3 +38,15 @@ jobs:
     - name: Test
       run: |
         cargo make ci-test
+    - name: Test openweather
+      env:
+        APIKEY: ${{ secrets.OPENWEATHER_CI_APIKEY }}
+      run: |
+        cargo run configure openweather apikey=${{ APIKEY }}
+        cargo run get -p openweather Washington
+    - name: Test weatherapi
+      env:
+        APIKEY: ${{ secrets.WEATHERAPI_CI_APIKEY }}
+      run: |
+        cargo run configure weatherapi apikey=${{ APIKEY }}
+        cargo run get -p weatherapi Washington
