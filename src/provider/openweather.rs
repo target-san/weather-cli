@@ -75,7 +75,8 @@ impl super::Provider for OpenWeather {
             "https://api.openweathermap.org/geo/1.0/direct?q={location}&limit=1&appid={apikey}"
         );
 
-        let data_url = format!("https://api.openweathermap.org/data/2.5/weather?appid={apikey}&units=metric");
+        let data_url =
+            format!("https://api.openweathermap.org/data/2.5/weather?appid={apikey}&units=metric");
         let fut = async move {
             // Transform location into coordinates
             let response = reqwest::get(location_url)
@@ -137,8 +138,7 @@ impl super::Provider for OpenWeather {
                     700..=799 => WeatherKind::Fog,
                     _ => WeatherKind::Unknown,
                 }
-            }
-            else {
+            } else {
                 WeatherKind::Unknown
             };
 

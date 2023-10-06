@@ -47,10 +47,7 @@ impl Display for WeatherInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!(
             "Weather: {}\nTemperature: {}°C\nWind speed: {} m/s\nHumidity: {}%",
-            self.weather,
-            self.temperature,
-            self.wind_speed,
-            self.humidity
+            self.weather, self.temperature, self.wind_speed, self.humidity
         ))
     }
 }
