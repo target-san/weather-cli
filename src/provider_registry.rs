@@ -4,8 +4,8 @@ use std::fmt;
 use std::marker::PhantomData;
 use std::ops::Deref;
 
-use crate::CowString;
 use crate::provider::Provider;
+use crate::CowString;
 
 pub struct ProviderRegistry {
     /// Map of registered providers.
