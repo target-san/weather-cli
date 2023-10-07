@@ -1,6 +1,6 @@
 #![deny(warnings)]
 
-use anyhow::{anyhow, bail, Context};
+use anyhow::{anyhow, bail, ensure, Context};
 use clap::Parser;
 use config::{read_from_file, write_to_file, Config, Section};
 use date::Date;
@@ -85,6 +85,8 @@ async fn configure_provider(
     let factory = registry
         .get(provider.as_str())
         .ok_or_else(|| anyhow!("No such provider: {provider}"))?;
+
+    let ProviderInfo { params, .. } = factory.info();
     // Interactive configuration: TODO
     if parameters.is_empty() {
         bail!("Sorry, interactive mode not implemented yet");
@@ -96,8 +98,23 @@ async fn configure_provider(
         let (name, value) = param.split_once('=').ok_or_else(|| {
             anyhow!("Argument '{param}' cannot be parsed as '<name>=<value>' parameter")
         })?;
+        // Check that parameter is required by provider
+        // NB: Yes, it's a linear search.
+        // Doesn't matter here - we have very few parameters,
+        // so may be even faster than build dictionary
+        ensure!(
+            params.iter().any(|param| param.id == name),
+            "Parameter '{name}' isn't accepted by provider '{provider}'"
+        );
 
         new_config.insert(name.to_string(), value.to_string());
+    }
+    // Check that all necessary parameters are present
+    for ParamDesc { id, .. } in *params {
+        ensure!(
+            new_config.contains_key(*id),
+            "Parameter '{id}' is required by provider '{provider}'"
+        )
     }
     // Perform simple request to check configuration is actually valid
     {
