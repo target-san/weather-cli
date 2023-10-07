@@ -20,6 +20,7 @@ mod config;
 mod date;
 mod provider;
 mod provider_registry;
+mod utils;
 
 /// Used as shortcut alias for any boxed future
 type BoxFuture<T> = Pin<Box<dyn Future<Output = T>>>;

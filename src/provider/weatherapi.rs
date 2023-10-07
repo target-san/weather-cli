@@ -1,7 +1,11 @@
-use anyhow::{anyhow, bail, Context};
+use std::fmt::Display;
+use std::str::FromStr;
+
+use anyhow::{anyhow, Context};
 use serde::Deserialize;
 
 use crate::config::Section;
+use crate::utils::restful_get;
 use crate::{BoxFuture, CowString};
 
 use super::{Date, ParamDesc, ProviderInfo, WeatherInfo, WeatherKind};
@@ -10,20 +14,47 @@ pub struct WeatherApi {
     apikey: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 struct ApiError {
     error: ApiErrorInner,
 }
 
-#[derive(Deserialize)]
+impl FromStr for ApiError {
+    type Err = serde_json::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        serde_json::from_str(s)
+    }
+}
+
+impl Display for ApiError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!(
+            "API error {}: {}",
+            self.error.code, self.error.message
+        ))
+    }
+}
+
+impl std::error::Error for ApiError {}
+
+#[derive(Debug, Deserialize)]
 struct ApiErrorInner {
     code: i32,
     message: String,
 }
 
 #[derive(Deserialize)]
-struct RawResponse {
+struct WeatherData {
     forecast: Forecast,
+}
+
+impl FromStr for WeatherData {
+    type Err = serde_json::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        serde_json::from_str(s)
+    }
 }
 
 #[derive(Deserialize)]
@@ -89,25 +120,9 @@ impl super::Provider for WeatherApi {
             date.year, date.month, date.day
         );
         let fut = async {
-            let response = reqwest::get(url).await?;
-
-            let is_ok = response.status().is_success();
-            let code = response.status().as_u16();
-            let text = response
-                .text()
+            let resp = restful_get::<WeatherData, ApiError>(url)
                 .await
-                .with_context(|| anyhow!("Could not obtain response text"))?;
-
-            if !is_ok {
-                let ApiError {
-                    error: ApiErrorInner { code, message },
-                } = serde_json::from_str(&text)
-                    .with_context(|| anyhow!("Could not parse API error, HTTP code {code}"))?;
-                bail!("API call error {code}: {message}");
-            }
-
-            let resp: RawResponse =
-                serde_json::from_str(&text).with_context(|| anyhow!("Could not parse response"))?;
+                .with_context(|| anyhow!("Request to historical weather data failed"))?;
 
             let day = &resp
                 .forecast

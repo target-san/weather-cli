@@ -1,7 +1,11 @@
-use anyhow::{anyhow, bail, Context};
+use std::fmt::Display;
+use std::str::FromStr;
+
+use anyhow::{anyhow, Context};
 use serde::Deserialize;
 
 use crate::config::Section;
+use crate::utils::restful_get;
 use crate::{BoxFuture, CowString};
 
 use super::{Date, ParamDesc, ProviderInfo, WeatherInfo, WeatherKind};
@@ -10,10 +14,36 @@ pub struct OpenWeather {
     apikey: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 struct ApiError {
     cod: i32,
     message: String,
+}
+
+impl FromStr for ApiError {
+    type Err = serde_json::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        serde_json::from_str(s)
+    }
+}
+
+impl Display for ApiError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("API error {}: {}", self.cod, self.message))
+    }
+}
+
+impl std::error::Error for ApiError {}
+
+struct CoordsVec(Vec<Coords>);
+
+impl FromStr for CoordsVec {
+    type Err = serde_json::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self(serde_json::from_str(s)?))
+    }
 }
 
 #[derive(Deserialize)]
@@ -23,10 +53,18 @@ struct Coords {
 }
 
 #[derive(Deserialize)]
-struct RawResponse {
+struct WeatherData {
     main: MainSection,
     wind: WindSection,
     weather: Vec<WeatherSection>,
+}
+
+impl FromStr for WeatherData {
+    type Err = serde_json::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        serde_json::from_str(s)
+    }
 }
 
 #[derive(Deserialize)]
@@ -94,54 +132,21 @@ impl super::Provider for OpenWeather {
             format!("https://api.openweathermap.org/data/2.5/weather?appid={apikey}&units=metric");
         let fut = async move {
             // Transform location into coordinates
-            let response = reqwest::get(location_url)
+            let locs = restful_get::<CoordsVec, ApiError>(location_url)
                 .await
-                .with_context(|| anyhow!("Failed to retrieve location's coordinates"))?;
+                .with_context(|| anyhow!("Could not obtain location's coordinates"))?
+                .0;
 
-            let is_ok = response.status().is_success();
-            let code = response.status().as_u16();
-
-            let text = response
-                .text()
-                .await
-                .with_context(|| anyhow!("Failed to retrieve location's coordinates"))?;
-
-            if !is_ok {
-                let ApiError { cod, message } = serde_json::from_str(&text)
-                    .with_context(|| anyhow!("Could not parse response error, HTTP {code}"))?;
-                bail!("API error {cod}: {message}");
-            }
-
-            let locs: Vec<Coords> = serde_json::from_str(&text).with_context(|| {
-                anyhow!("Could not parse location response as array of coordinates")
-            })?;
-
-            let Coords { lat, lon } = locs.first().ok_or_else(|| {
-                anyhow!("Could not resolve location '{location}' into coordinates")
-            })?;
+            let Coords { lat, lon } = locs
+                .first()
+                .ok_or_else(|| anyhow!("Could not obtain coordinates of location '{location}'"))?;
             // Perform actual weather request
             let data_url = format!("{data_url}&lat={lat:.4}&lon={lon:.4}");
 
-            let response = reqwest::get(data_url)
+            let resp = restful_get::<WeatherData, ApiError>(data_url)
                 .await
-                .with_context(|| anyhow!("Failed to retrieve weather forecast"))?;
+                .with_context(|| anyhow!("Could not obtain weather forecast"))?;
 
-            let is_ok = response.status().is_success();
-            let code = response.status().as_u16();
-
-            let text = response
-                .text()
-                .await
-                .with_context(|| anyhow!("Failed to retrieve weather forecast"))?;
-
-            if !is_ok {
-                let ApiError { cod, message } = serde_json::from_str(&text)
-                    .with_context(|| anyhow!("Could not parse response error, HTTP {code}"))?;
-                bail!("API error {cod}: {message}");
-            }
-
-            let resp: RawResponse =
-                serde_json::from_str(&text).with_context(|| anyhow!("Could not parse response"))?;
             // Primitive weather resolver = fetch first entry, otherwise unknown
             let weather = if let Some(weather) = resp.weather.first() {
                 // Use weather condition codes form https://openweathermap.org/weather-conditions
