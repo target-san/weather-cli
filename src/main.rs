@@ -4,6 +4,7 @@ use anyhow::{anyhow, bail, ensure, Context};
 use clap::Parser;
 use config::{read_from_file, write_to_file, Config, Section};
 use date::Date;
+use provider::accuweather::AccuWeather;
 use provider::WeatherInfo;
 use std::borrow::Cow;
 use std::future::Future;
@@ -259,6 +260,7 @@ async fn main() -> anyhow::Result<()> {
     // Fill in providers registry
     let mut registry = ProviderRegistry::new();
 
+    registry.add_provider::<AccuWeather>("accuweather");
     registry.add_provider::<OpenWeather>("openweather");
     registry.add_provider::<WeatherApi>("weatherapi");
     // Execute CLI command

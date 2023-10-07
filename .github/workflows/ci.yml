@@ -52,3 +52,10 @@ jobs:
       run: |
         cargo run configure weatherapi apikey=$APIKEY
         cargo run get -p weatherapi Washington
+    - name: Test accuweather
+      shell: bash
+      env:
+        APIKEY: ${{ secrets.ACCUWEATHER_CI_APIKEY }}
+      run: |
+        cargo run configure accuweather apikey=$APIKEY
+        cargo run get -p accuweather Washington
