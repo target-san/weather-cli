@@ -87,34 +87,41 @@ async fn configure_provider(
         .ok_or_else(|| anyhow!("No such provider: {provider}"))?;
 
     let ProviderInfo { params, .. } = factory.info();
-    // Interactive configuration: TODO
-    if parameters.is_empty() {
-        bail!("Sorry, interactive mode not implemented yet");
-    }
     // Generate new config
     let mut new_config = Section::new();
-
-    for param in parameters {
-        let (name, value) = param.split_once('=').ok_or_else(|| {
-            anyhow!("Argument '{param}' cannot be parsed as '<name>=<value>' parameter")
-        })?;
-        // Check that parameter is required by provider
-        // NB: Yes, it's a linear search.
-        // Doesn't matter here - we have very few parameters,
-        // so may be even faster than build dictionary
-        ensure!(
-            params.iter().any(|param| param.id == name),
-            "Parameter '{name}' isn't accepted by provider '{provider}'"
-        );
-
-        new_config.insert(name.to_string(), value.to_string());
+    // Interactive configuration
+    if parameters.is_empty() && !params.is_empty() {
+        for ParamDesc { id, name, .. } in *params {
+            println!("Please enter {name}:");
+            let mut buffer = String::new();
+            std::io::stdin().read_line(&mut buffer)?;
+            new_config.insert(id.to_string(), buffer);
+        }
     }
-    // Check that all necessary parameters are present
-    for ParamDesc { id, .. } in *params {
-        ensure!(
-            new_config.contains_key(*id),
-            "Parameter '{id}' is required by provider '{provider}'"
-        )
+    // Batch configuration
+    else {
+        for param in parameters {
+            let (name, value) = param.split_once('=').ok_or_else(|| {
+                anyhow!("Argument '{param}' cannot be parsed as '<name>=<value>' parameter")
+            })?;
+            // Check that parameter is required by provider
+            // NB: Yes, it's a linear search.
+            // Doesn't matter here - we have very few parameters,
+            // so may be even faster than build dictionary
+            ensure!(
+                params.iter().any(|param| param.id == name),
+                "Parameter '{name}' isn't accepted by provider '{provider}'"
+            );
+
+            new_config.insert(name.to_string(), value.to_string());
+        }
+        // Check that all necessary parameters are present
+        for ParamDesc { id, .. } in *params {
+            ensure!(
+                new_config.contains_key(*id),
+                "Parameter '{id}' is required by provider '{provider}'"
+            )
+        }
     }
     // Perform simple request to check configuration is actually valid
     {
