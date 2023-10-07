@@ -1,8 +1,10 @@
-use crate::{config::Section, BoxFuture, CowString};
 use anyhow::{anyhow, bail, Context};
 use serde::Deserialize;
 
-use super::{Date, WeatherInfo, WeatherKind};
+use crate::{BoxFuture, CowString};
+use crate::config::Section;
+
+use super::{Date, WeatherInfo, WeatherKind, ProviderInfo, ParamDesc};
 
 pub struct OpenWeather {
     apikey: String,
@@ -54,6 +56,20 @@ impl super::Provider for OpenWeather {
                 .ok_or_else(|| anyhow!("Missing parameter 'apikey'"))?
                 .clone(),
         })
+    }
+
+    fn info() -> &'static ProviderInfo where Self: Sized {
+        const INFO: ProviderInfo = ProviderInfo {
+            description: "OpenWeather (https://openweathermap.org/)",
+            params: &[
+                ParamDesc {
+                    id: "apikey",
+                    name: "User's API key",
+                    description: "used to authenticate user requests",
+                }
+            ],
+        };
+        &INFO
     }
 
     fn get_weather(

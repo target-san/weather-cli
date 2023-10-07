@@ -4,7 +4,7 @@ use std::marker::PhantomData;
 use std::ops::Deref;
 
 use crate::config::Section;
-use crate::provider::Provider;
+use crate::provider::{Provider, ProviderInfo};
 use crate::CowString;
 
 pub struct ProviderRegistry {
@@ -63,6 +63,11 @@ pub trait ProviderFactory {
     /// # Returns
     /// Boxed future which completes with boxed provider instance or error
     fn create(&self, config: &Section) -> anyhow::Result<Box<dyn Provider>>;
+    /// Get additional information about provider
+    /// 
+    /// # Returns
+    /// Provider information
+    fn info(&self) -> &'static ProviderInfo;
 }
 /// Factory companion to type which implements `Provider` trait
 ///
@@ -81,5 +86,9 @@ impl<T: Provider + 'static> ProviderFactoryT<T> {
 impl<T: Provider + 'static> ProviderFactory for ProviderFactoryT<T> {
     fn create(&self, config: &Section) -> anyhow::Result<Box<dyn Provider>> {
         T::new(config).map(|p| Box::new(p) as Box<dyn Provider>)
+    }
+
+    fn info(&self) -> &'static ProviderInfo {
+        T::info()
     }
 }

@@ -49,7 +49,22 @@ impl Display for WeatherInfo {
         ))
     }
 }
-
+/// Additional information about provider
+pub struct ProviderInfo {
+    /// Detailed description, used when listing providers
+    pub description: &'static str,
+    /// Parameters this provider requires as its configuration
+    pub params: &'static [ParamDesc],
+}
+/// Parameter description
+pub struct ParamDesc {
+    /// Parameter identifier, used to specify parameter when creating provider
+    pub id: &'static str,
+    /// User-friendly name, used to request parameter in interactive mode
+    pub name: &'static str,
+    /// Parameter description, used when listing providers
+    pub description: &'static str,
+}
 /// Defines any provider of weather data
 ///
 /// NB: Futures can be unboxed when async traits arrive
@@ -64,6 +79,11 @@ pub trait Provider {
     fn new(config: &Section) -> anyhow::Result<Self>
     where
         Self: Sized;
+    /// Get additional information about provider
+    /// 
+    /// # Returns
+    /// Provider information
+    fn info() -> &'static ProviderInfo where Self: Sized;
     /// Fetches weather information asynchronously at specified location and UNIX timestamp
     ///
     /// # Parameters
