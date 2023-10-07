@@ -1,6 +1,11 @@
-use std::{collections::BTreeMap, convert::Infallible, str::FromStr, path::{PathBuf, Path}};
+use std::{
+    collections::BTreeMap,
+    convert::Infallible,
+    path::{Path, PathBuf},
+    str::FromStr,
+};
 
-use anyhow::{Context, bail, anyhow};
+use anyhow::{anyhow, bail, Context};
 use light_ini::{IniHandler, IniParser};
 /// Representation of INI file section
 /// BTreeMap is used to preserve nice alphabetic order of keys

@@ -2,7 +2,7 @@
 
 use anyhow::{anyhow, bail, Context};
 use clap::Parser;
-use config::{Config, Section, read_from_file, write_to_file};
+use config::{read_from_file, write_to_file, Config, Section};
 use date::Date;
 use provider::WeatherInfo;
 use std::borrow::Cow;
@@ -13,6 +13,7 @@ use std::str::FromStr;
 
 use crate::provider::openweather::OpenWeather;
 use crate::provider::weatherapi::WeatherApi;
+use crate::provider::{ParamDesc, ProviderInfo};
 use crate::provider_registry::ProviderRegistry;
 
 mod config;
@@ -70,6 +71,8 @@ enum CliCmd {
         /// Names of providers whose configurations to clear; specify "all" to clear all providers
         providers: Vec<String>,
     },
+    /// List available providers and their configuration parameters
+    List,
 }
 /// Configures specified provider, either with provided key-value parameters or interactively
 async fn configure_provider(
@@ -200,6 +203,28 @@ fn clear_providers(
     Ok(())
 }
 
+fn list_providers(registry: &ProviderRegistry) {
+    for (id, factory) in registry.iter() {
+        let ProviderInfo {
+            description,
+            params,
+        } = factory.info();
+        println!("{id}: {description}");
+        if !params.is_empty() {
+            println!("  Parameters:");
+            for ParamDesc {
+                id,
+                name,
+                description,
+            } in *params
+            {
+                println!("    {id:<16} - {name}, {description}");
+            }
+        }
+        println!();
+    }
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // Parse command line arguments
@@ -231,6 +256,7 @@ async fn main() -> anyhow::Result<()> {
             println!("{forecast}");
         }
         CliCmd::Clear { providers } => clear_providers(&registry, &mut config, providers)?,
+        CliCmd::List => list_providers(&registry),
     }
 
     write_to_file(&config, config_path).await?;

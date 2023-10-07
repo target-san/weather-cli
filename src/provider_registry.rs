@@ -64,7 +64,7 @@ pub trait ProviderFactory {
     /// Boxed future which completes with boxed provider instance or error
     fn create(&self, config: &Section) -> anyhow::Result<Box<dyn Provider>>;
     /// Get additional information about provider
-    /// 
+    ///
     /// # Returns
     /// Provider information
     fn info(&self) -> &'static ProviderInfo;

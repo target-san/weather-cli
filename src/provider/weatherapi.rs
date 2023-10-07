@@ -1,10 +1,10 @@
 use anyhow::{anyhow, bail, Context};
 use serde::Deserialize;
 
-use crate::{BoxFuture, CowString};
 use crate::config::Section;
+use crate::{BoxFuture, CowString};
 
-use super::{Date, WeatherInfo, WeatherKind, ProviderInfo, ParamDesc};
+use super::{Date, ParamDesc, ProviderInfo, WeatherInfo, WeatherKind};
 
 pub struct WeatherApi {
     apikey: String,
@@ -62,16 +62,17 @@ impl super::Provider for WeatherApi {
         })
     }
 
-    fn info() -> &'static ProviderInfo where Self: Sized {
+    fn info() -> &'static ProviderInfo
+    where
+        Self: Sized,
+    {
         const INFO: ProviderInfo = ProviderInfo {
             description: "WeatherAPI (https://www.weatherapi.com/)",
-            params: &[
-                ParamDesc {
-                    id: "apikey",
-                    name: "User's API key",
-                    description: "used to authenticate user requests",
-                }
-            ],
+            params: &[ParamDesc {
+                id: "apikey",
+                name: "User's API key",
+                description: "used to authenticate user requests",
+            }],
         };
         &INFO
     }

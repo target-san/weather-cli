@@ -80,10 +80,12 @@ pub trait Provider {
     where
         Self: Sized;
     /// Get additional information about provider
-    /// 
+    ///
     /// # Returns
     /// Provider information
-    fn info() -> &'static ProviderInfo where Self: Sized;
+    fn info() -> &'static ProviderInfo
+    where
+        Self: Sized;
     /// Fetches weather information asynchronously at specified location and UNIX timestamp
     ///
     /// # Parameters
