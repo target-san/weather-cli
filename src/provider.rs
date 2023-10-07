@@ -4,7 +4,7 @@ use crate::{config::Section, date::Date, BoxFuture, CowString};
 
 pub mod openweather;
 pub mod weatherapi;
-/// Describes kind of weather - clear sky, clouds present or raining
+/// Describes kind of weather - clear sky, clouds, raining etc.
 #[derive(Debug)]
 pub enum WeatherKind {
     Unknown,

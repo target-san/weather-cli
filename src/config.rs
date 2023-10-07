@@ -1,5 +1,6 @@
-use std::{collections::BTreeMap, convert::Infallible, str::FromStr};
+use std::{collections::BTreeMap, convert::Infallible, str::FromStr, path::{PathBuf, Path}};
 
+use anyhow::{Context, bail, anyhow};
 use light_ini::{IniHandler, IniParser};
 /// Representation of INI file section
 /// BTreeMap is used to preserve nice alphabetic order of keys
@@ -112,4 +113,73 @@ impl IniHandler for IniVisitor {
         self.current.1.push((key.to_string(), value.to_string()));
         Ok(())
     }
+}
+
+/// Read app's configuration at specified path; if path isn't provided, default config path is used
+///
+/// # Parameters
+/// * `path` - optional config path
+///
+/// # Returns
+/// Parsed configuration as TOML table and path to it
+pub async fn read_from_file(path: Option<PathBuf>) -> anyhow::Result<(Config, PathBuf)> {
+    // Fetch path to config file
+    let config_path = if let Some(path) = path {
+        path
+    } else if let Some(path) = dirs::config_dir() {
+        path.join("weather-cli").join("config.ini")
+    } else if let Some(path) = dirs::home_dir() {
+        path.join(".weather-cli.ini")
+    } else {
+        bail!(
+            "Current OS doesn't seem to have notion of either user's config directory or user's home directory. Please use explicit '--config' argument"
+        )
+    };
+
+    // Read config file itself - if it exists
+    let config = if config_path.is_file() {
+        let contents = tokio::fs::read_to_string(&config_path)
+            .await
+            .with_context(|| anyhow!("When reading config file '{}'", config_path.display()))?;
+        Config::from_str(&contents)
+            .with_context(|| anyhow!("When parsing config file '{}'", config_path.display()))?
+    } else if config_path.exists() {
+        bail!(
+            "Path '{}' exists yet points not to file",
+            config_path.display()
+        )
+    } else {
+        Config::new()
+    };
+
+    Ok((config, config_path))
+}
+/// Writes app's configuration at specified path
+///
+/// # Parameters
+/// * `config` - configuration object
+/// * `path` - path where to write configuration
+pub async fn write_to_file(config: &Config, path: impl AsRef<Path>) -> anyhow::Result<()> {
+    let config_path = path.as_ref();
+    // Write config back to file
+    if !config_path.is_file() {
+        let Some(config_dir_path) = config_path.parent() else {
+            // Config path points either to existing file
+            // or to some nonexistent location - so it cannot be just root path
+            // whose parent would be `None`
+            unreachable!()
+        };
+        tokio::fs::create_dir_all(config_dir_path)
+            .await
+            .with_context(|| {
+                anyhow!(
+                    "When creating config directory {}",
+                    config_dir_path.display()
+                )
+            })?;
+    }
+
+    tokio::fs::write(&config_path, config.to_string())
+        .await
+        .with_context(|| anyhow!("When writing configuration to {}", config_path.display()))
 }

@@ -2,12 +2,12 @@
 
 use anyhow::{anyhow, bail, Context};
 use clap::Parser;
-use config::{Config, Section};
+use config::{Config, Section, read_from_file, write_to_file};
 use date::Date;
 use provider::WeatherInfo;
 use std::borrow::Cow;
 use std::future::Future;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::pin::Pin;
 use std::str::FromStr;
 
@@ -70,74 +70,6 @@ enum CliCmd {
         /// Names of providers whose configurations to clear; specify "all" to clear all providers
         providers: Vec<String>,
     },
-}
-/// Read app's configuration at specified path; if path isn't provided, default config path is used
-///
-/// # Parameters
-/// * `path` - optional config path
-///
-/// # Returns
-/// Parsed configuration as TOML table and path to it
-async fn read_config(path: Option<PathBuf>) -> anyhow::Result<(Config, PathBuf)> {
-    // Fetch path to config file
-    let config_path = if let Some(path) = path {
-        path
-    } else if let Some(path) = dirs::config_dir() {
-        path.join("weather-cli").join("config.ini")
-    } else if let Some(path) = dirs::home_dir() {
-        path.join(".weather-cli.ini")
-    } else {
-        bail!(
-            "Current OS doesn't seem to have notion of either user's config directory or user's home directory. Please use explicit '--config' argument"
-        )
-    };
-
-    // Read config file itself - if it exists
-    let config = if config_path.is_file() {
-        let contents = tokio::fs::read_to_string(&config_path)
-            .await
-            .with_context(|| anyhow!("When reading config file '{}'", config_path.display()))?;
-        Config::from_str(&contents)
-            .with_context(|| anyhow!("When parsing config file '{}'", config_path.display()))?
-    } else if config_path.exists() {
-        bail!(
-            "Path '{}' exists yet points not to file",
-            config_path.display()
-        )
-    } else {
-        Config::new()
-    };
-
-    Ok((config, config_path))
-}
-/// Writes app's configuration at specified path
-///
-/// # Parameters
-/// * `config` - configuration object
-/// * `path` - path where to write configuration
-async fn write_config(config: &Config, path: impl AsRef<Path>) -> anyhow::Result<()> {
-    let config_path = path.as_ref();
-    // Write config back to file
-    if !config_path.is_file() {
-        let Some(config_dir_path) = config_path.parent() else {
-            // Config path points either to existing file
-            // or to some nonexistent location - so it cannot be just root path
-            // whose parent would be `None`
-            unreachable!()
-        };
-        tokio::fs::create_dir_all(config_dir_path)
-            .await
-            .with_context(|| {
-                anyhow!(
-                    "When creating config directory {}",
-                    config_dir_path.display()
-                )
-            })?;
-    }
-
-    tokio::fs::write(&config_path, config.to_string())
-        .await
-        .with_context(|| anyhow!("When writing configuration to {}", config_path.display()))
 }
 /// Configures specified provider, either with provided key-value parameters or interactively
 async fn configure_provider(
@@ -273,7 +205,7 @@ async fn main() -> anyhow::Result<()> {
     // Parse command line arguments
     let Cli { config, command } = Cli::parse();
 
-    let (mut config, config_path) = read_config(config).await?;
+    let (mut config, config_path) = read_from_file(config).await?;
     // Fill in providers registry
     let mut registry = ProviderRegistry::new();
 
@@ -301,7 +233,7 @@ async fn main() -> anyhow::Result<()> {
         CliCmd::Clear { providers } => clear_providers(&registry, &mut config, providers)?,
     }
 
-    write_config(&config, config_path).await?;
+    write_to_file(&config, config_path).await?;
     // End of processing
     Ok(())
 }
