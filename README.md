@@ -4,8 +4,8 @@ Implementation of [Weather CLI demo application](https://gist.github.com/anelson
 
 Notes and limitations:
 * `AerisWeather` requires complex OAuth-based authentication and application registration, so it's omitted intentionally
-* `OpenWeather` provides only 24h forecast, so doesn't support custom date
-* `AccuWeather`'s historical data is available only on enterprise plans, so not supported
+* `OpenWeather` provides only 24h forecast on free plans, so custom date isn't supported
+* `AccuWeather`'s historical data is available only on enterprise plans, so custom date isn't supported either
 
 ## Development
 
