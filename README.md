@@ -3,11 +3,11 @@
 CLI application which allows user to fetch weather data at specific location from one of providers.
 Providers supported:
 
-* [https://www.accuweather.com/]. Provides data on current weather conditions.
+* [AccuWeather](https://www.accuweather.com/). Provides data on current weather conditions.
     Doesn't support forecast on specific date.
-* [https://openweathermap.org/]. Provides data on current weather conditions.
+* [OpenWeather](https://openweathermap.org/). Provides data on current weather conditions.
     Doesn't support forecast on specific date.
-* [https://www.weatherapi.com/]. May provide weather data for specific date, depending on
+* [WeatherAPI](https://www.weatherapi.com/). May provide weather data for specific date, depending on
     user's subscription plan.
 
 Please note that using any of these providers requires registration and possibly subscription
