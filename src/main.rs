@@ -7,7 +7,7 @@ use date::Date;
 use provider::accuweather::AccuWeather;
 use provider::WeatherInfo;
 use std::borrow::Cow;
-use std::future::Future;
+use std::future::{Future, IntoFuture};
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::str::FromStr;
@@ -31,6 +31,58 @@ type CowString = Cow<'static, str>;
 const DEFAULT_CONFIGURE_LOCATION: &str = "London";
 /// Name of config entry with currently active provider
 const ACTIVE_ENTRY: &str = "current";
+
+fn main() -> anyhow::Result<()> {
+    // Parse command line arguments
+    let Cli { config, command } = Cli::parse();
+
+    let (mut config, config_path) = read_from_file(config)?;
+    // Fill in providers registry
+    let mut registry = ProviderRegistry::new();
+
+    registry.add_provider::<AccuWeather>("accuweather");
+    registry.add_provider::<OpenWeather>("openweather");
+    registry.add_provider::<WeatherApi>("weatherapi");
+    // Execute CLI command
+    match command {
+        CliCmd::Configure {
+            provider,
+            parameters,
+        } => {
+            configure_provider(&registry, &mut config, provider.clone(), parameters)?;
+            println!("Successfully configured provider '{provider}'");
+        }
+        CliCmd::Get {
+            address,
+            date,
+            provider,
+            set_default,
+        } => {
+            let forecast =
+                get_forecast(&registry, &mut config, address, date, provider, set_default)?;
+            println!("{forecast}");
+        }
+        CliCmd::Clear { providers } => clear_providers(&registry, &mut config, providers)?,
+        CliCmd::List => list_providers(&registry),
+    }
+    // If all operations succeeded, write updated config back to file
+    write_to_file(&config, config_path)?;
+    // End of processing
+    Ok(())
+}
+/// Executes future using lightweight current-thread scheduler
+/// 
+/// # Parameters
+/// * `future` - input object convertible into future which produces `Result`
+/// 
+/// # Returns
+/// Future's execution result
+fn run_future<R>(future: impl IntoFuture<Output = anyhow::Result<R>>) -> anyhow::Result<R> {
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()?
+        .block_on(future.into_future())
+}
 
 /// Command-line client for weather forecast services
 #[derive(clap::Parser)]
@@ -77,7 +129,7 @@ enum CliCmd {
     List,
 }
 /// Configures specified provider, either with provided key-value parameters or interactively
-async fn configure_provider(
+fn configure_provider(
     registry: &ProviderRegistry,
     config: &mut Config,
     provider: String,
@@ -133,9 +185,7 @@ async fn configure_provider(
             .create(&new_config)
             .with_context(prov_config_error())?;
 
-        let _ = provider
-            .get_weather(DEFAULT_CONFIGURE_LOCATION.into(), None)
-            .await
+        let _ = run_future(provider.get_weather(DEFAULT_CONFIGURE_LOCATION.into(), None))
             .with_context(prov_config_error())?;
     }
     // If check succeeded, write new config entry; if config was empty prior to first configure,
@@ -148,7 +198,7 @@ async fn configure_provider(
     Ok(())
 }
 /// Gets weather forecast using specified provider
-async fn get_forecast(
+fn get_forecast(
     registry: &ProviderRegistry,
     config: &mut Config,
     address: String,
@@ -186,9 +236,7 @@ async fn get_forecast(
         Some(Date::from_str(&date).with_context(|| anyhow!("Could not parse forecast date"))?)
     };
 
-    let result = provider
-        .get_weather(address.into(), date)
-        .await
+    let result = run_future(provider.get_weather(address.into(), date))
         .with_context(|| anyhow!("When performing forecast request"))?;
     // Set provider as default - if requested
     if set_default {
@@ -249,44 +297,4 @@ fn list_providers(registry: &ProviderRegistry) {
         }
         println!();
     }
-}
-
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
-    // Parse command line arguments
-    let Cli { config, command } = Cli::parse();
-
-    let (mut config, config_path) = read_from_file(config).await?;
-    // Fill in providers registry
-    let mut registry = ProviderRegistry::new();
-
-    registry.add_provider::<AccuWeather>("accuweather");
-    registry.add_provider::<OpenWeather>("openweather");
-    registry.add_provider::<WeatherApi>("weatherapi");
-    // Execute CLI command
-    match command {
-        CliCmd::Configure {
-            provider,
-            parameters,
-        } => {
-            configure_provider(&registry, &mut config, provider.clone(), parameters).await?;
-            println!("Successfully configured provider '{provider}'");
-        }
-        CliCmd::Get {
-            address,
-            date,
-            provider,
-            set_default,
-        } => {
-            let forecast =
-                get_forecast(&registry, &mut config, address, date, provider, set_default).await?;
-            println!("{forecast}");
-        }
-        CliCmd::Clear { providers } => clear_providers(&registry, &mut config, providers)?,
-        CliCmd::List => list_providers(&registry),
-    }
-
-    write_to_file(&config, config_path).await?;
-    // End of processing
-    Ok(())
 }

@@ -1,6 +1,7 @@
 use std::{
     collections::BTreeMap,
     convert::Infallible,
+    fs,
     path::{Path, PathBuf},
     str::FromStr,
 };
@@ -127,7 +128,7 @@ impl IniHandler for IniVisitor {
 ///
 /// # Returns
 /// Parsed configuration as TOML table and path to it
-pub async fn read_from_file(path: Option<PathBuf>) -> anyhow::Result<(Config, PathBuf)> {
+pub fn read_from_file(path: Option<PathBuf>) -> anyhow::Result<(Config, PathBuf)> {
     // Fetch path to config file
     let config_path = if let Some(path) = path {
         path
@@ -143,8 +144,7 @@ pub async fn read_from_file(path: Option<PathBuf>) -> anyhow::Result<(Config, Pa
 
     // Read config file itself - if it exists
     let config = if config_path.is_file() {
-        let contents = tokio::fs::read_to_string(&config_path)
-            .await
+        let contents = fs::read_to_string(&config_path)
             .with_context(|| anyhow!("When reading config file '{}'", config_path.display()))?;
         Config::from_str(&contents)
             .with_context(|| anyhow!("When parsing config file '{}'", config_path.display()))?
@@ -164,27 +164,23 @@ pub async fn read_from_file(path: Option<PathBuf>) -> anyhow::Result<(Config, Pa
 /// # Parameters
 /// * `config` - configuration object
 /// * `path` - path where to write configuration
-pub async fn write_to_file(config: &Config, path: impl AsRef<Path>) -> anyhow::Result<()> {
+pub fn write_to_file(config: &Config, path: impl AsRef<Path>) -> anyhow::Result<()> {
     let config_path = path.as_ref();
     // Write config back to file
     if !config_path.is_file() {
-        let Some(config_dir_path) = config_path.parent() else {
-            // Config path points either to existing file
-            // or to some nonexistent location - so it cannot be just root path
-            // whose parent would be `None`
-            unreachable!()
-        };
-        tokio::fs::create_dir_all(config_dir_path)
-            .await
-            .with_context(|| {
-                anyhow!(
-                    "When creating config directory {}",
-                    config_dir_path.display()
-                )
-            })?;
+        let config_dir_path = config_path.parent().ok_or_else(|| {
+            anyhow!(
+                "Config file path is somehow incorrect, as its parent directory cannot be obtained"
+            )
+        })?;
+        fs::create_dir_all(config_dir_path).with_context(|| {
+            anyhow!(
+                "When creating config directory {}",
+                config_dir_path.display()
+            )
+        })?;
     }
 
-    tokio::fs::write(&config_path, config.to_string())
-        .await
+    fs::write(&config_path, config.to_string())
         .with_context(|| anyhow!("When writing configuration to {}", config_path.display()))
 }
