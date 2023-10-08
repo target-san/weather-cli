@@ -10,9 +10,14 @@ use crate::{BoxFuture, CowString};
 
 use super::{Date, ParamDesc, ProviderInfo, WeatherInfo, WeatherKind};
 
+/// WeatherAPI provider implementation
 pub struct WeatherApi {
     apikey: String,
 }
+
+//
+// Error handling structures
+//
 
 #[derive(Debug, Deserialize)]
 struct ApiError {
@@ -44,6 +49,11 @@ struct ApiErrorInner {
     message: String,
 }
 
+//
+// Weather response structures
+//
+
+/// Weather response root
 #[derive(Deserialize)]
 struct WeatherData {
     forecast: Forecast,

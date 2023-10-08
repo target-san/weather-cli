@@ -6,7 +6,7 @@ use std::ops::Deref;
 use crate::config::Section;
 use crate::provider::{Provider, ProviderInfo};
 use crate::CowString;
-
+/// Registry of providers used by application
 pub struct ProviderRegistry {
     /// Map of registered providers.
     /// `BTreeMap` is used to have nice alphabetic order when printing help text
@@ -22,16 +22,19 @@ impl Deref for ProviderRegistry {
 }
 
 impl ProviderRegistry {
-    /// Create new provider selector
+    /// Create new provider registry
     ///
     /// # Returns
-    /// New empty `Selector`
+    /// New empty `ProviderRegistry`
     pub fn new() -> Self {
         Self {
             providers: BTreeMap::new(),
         }
     }
-    /// Adds new named provider to selector's registry
+    /// Adds new named provider to registry
+    ///
+    /// Provider isn't instantiated, but is rather specified as type parameter.
+    /// Then, factory object is created based on provider type, and stored in registry
     ///
     /// # Generics
     /// * `T` - provider type to register
@@ -40,8 +43,8 @@ impl ProviderRegistry {
     /// * `name` - provider's name
     ///
     /// # Panics
-    /// If provider with such name is already registered since it's a clear programmer's error,
-    /// not user's one
+    /// If provider with such name is already registered.
+    /// Registering multiple providers under same name is programmer's error.
     pub fn add_provider<T: Provider + 'static>(&mut self, name: impl Into<CowString>) {
         let name: CowString = name.into();
         match self.providers.entry(name) {

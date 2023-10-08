@@ -12,7 +12,7 @@ use light_ini::{IniHandler, IniParser};
 /// BTreeMap is used to preserve nice alphabetic order of keys
 pub type Section = BTreeMap<String, String>;
 
-/// Application configuration structure
+/// Application's parsed raw configuration file
 #[derive(Default)]
 pub struct Config {
     pub globals: Section,
@@ -64,9 +64,7 @@ impl ToString for Config {
         buf
     }
 }
-
-type HandleSection = Vec<(String, String)>;
-
+/// Simple visitor for parsing INI files
 #[derive(Default)]
 struct IniVisitor {
     globals: HandleSection,
@@ -74,11 +72,13 @@ struct IniVisitor {
     current: (Option<String>, HandleSection),
 }
 
+type HandleSection = Vec<(String, String)>;
+
 impl IniVisitor {
     fn new() -> Self {
         Self::default()
     }
-
+    /// Build `Config` out of visitor
     fn build(mut self) -> Config {
         self.flush_current();
         Config {
@@ -90,7 +90,7 @@ impl IniVisitor {
                 .collect(),
         }
     }
-
+    /// Move currently collected section to either globals or new named section
     fn flush_current(&mut self) {
         let (current_name, current_items) = std::mem::take(&mut self.current);
         if current_items.is_empty() {
@@ -106,6 +106,7 @@ impl IniVisitor {
 }
 
 impl IniHandler for IniVisitor {
+    /// This visitor doesn't fail on its own, as it just collects INI entries
     type Error = Infallible;
 
     fn section(&mut self, name: &str) -> Result<(), Self::Error> {

@@ -11,10 +11,14 @@ use crate::{BoxFuture, CowString};
 use super::{Date, ParamDesc, ProviderInfo, WeatherInfo, WeatherKind};
 // Convert km/h to m/s
 const KM_H_M_S: f32 = 1.0 / 3.6;
-
+/// Implementation of AccuWeather forecast provider
 pub struct AccuWeather {
     apikey: String,
 }
+
+//
+// Error handling structures
+//
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "PascalCase")]
@@ -39,6 +43,11 @@ impl Display for ApiError {
 
 impl std::error::Error for ApiError {}
 
+//
+// Location API response
+//
+
+/// Location API root structure
 struct LocationData(Vec<Location>);
 
 impl FromStr for LocationData {
@@ -55,6 +64,11 @@ struct Location {
     key: String,
 }
 
+//
+// Weather API structures
+//
+
+/// Weather response root
 #[derive(Deserialize)]
 #[serde(rename_all = "PascalCase")]
 struct WeatherData(Vec<Condition>);
@@ -122,7 +136,7 @@ impl super::Provider for AccuWeather {
         Self: Sized,
     {
         const INFO: ProviderInfo = ProviderInfo {
-            description: "AccuWeather (https://www.accuweather.com/)",
+            description: "AccuWeather (https://www.accuweather.com/); doesn't support specific dates, only current conditions",
             params: &[ParamDesc {
                 id: "apikey",
                 name: "User's API key",

@@ -1,3 +1,6 @@
+//! # Weather CLI application
+//!
+//! See repository's `README.md` for more user-facing info
 #![deny(warnings)]
 
 use anyhow::{anyhow, bail, ensure, Context};
@@ -84,7 +87,7 @@ fn run_future<R>(future: impl IntoFuture<Output = anyhow::Result<R>>) -> anyhow:
         .block_on(future.into_future())
 }
 
-/// Command-line client for weather forecast services
+/// Command-line argument parser
 #[derive(clap::Parser)]
 struct Cli {
     /// Path to alternative config file
@@ -93,7 +96,7 @@ struct Cli {
     #[command(subcommand)]
     command: CliCmd,
 }
-/// Weather client command
+/// CLI commands
 #[derive(clap::Subcommand)]
 enum CliCmd {
     /// Configure specified forecast provider
@@ -247,7 +250,7 @@ fn get_forecast(
 
     Ok(result)
 }
-
+/// Clear either specified or all providers
 fn clear_providers(
     registry: &ProviderRegistry,
     config: &mut Config,
@@ -276,7 +279,7 @@ fn clear_providers(
 
     Ok(())
 }
-
+/// List supported providers with their ids and some info on required parameters
 fn list_providers(registry: &ProviderRegistry) {
     for (id, factory) in registry.iter() {
         let ProviderInfo {

@@ -50,7 +50,8 @@ impl Display for WeatherInfo {
         ))
     }
 }
-/// Additional information about provider
+/// Additional information about provider, used to show extended help or validate
+/// config parameters
 pub struct ProviderInfo {
     /// Detailed description, used when listing providers
     pub description: &'static str,

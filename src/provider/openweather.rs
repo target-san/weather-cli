@@ -10,9 +10,14 @@ use crate::{BoxFuture, CowString};
 
 use super::{Date, ParamDesc, ProviderInfo, WeatherInfo, WeatherKind};
 
+/// OpenWeather provider
 pub struct OpenWeather {
     apikey: String,
 }
+
+//
+// Error handling structures
+//
 
 #[derive(Debug, Deserialize)]
 struct ApiError {
@@ -36,6 +41,11 @@ impl Display for ApiError {
 
 impl std::error::Error for ApiError {}
 
+//
+// Location response structures
+//
+
+/// Location response root
 struct CoordsVec(Vec<Coords>);
 
 impl FromStr for CoordsVec {
@@ -52,6 +62,11 @@ struct Coords {
     lon: f64,
 }
 
+//
+// Weather response structures
+//
+
+/// Weather response root
 #[derive(Deserialize)]
 struct WeatherData {
     main: MainSection,
@@ -101,7 +116,7 @@ impl super::Provider for OpenWeather {
         Self: Sized,
     {
         const INFO: ProviderInfo = ProviderInfo {
-            description: "OpenWeather (https://openweathermap.org/)",
+            description: "OpenWeather (https://openweathermap.org/); doesn't support specific dates, only current conditions",
             params: &[ParamDesc {
                 id: "apikey",
                 name: "User's API key",
