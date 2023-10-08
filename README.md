@@ -1,5 +1,29 @@
 # Weather CLI application
 
+CLI application which allows user to fetch weather data at specific location from one of providers.
+Providers supported:
+
+* [https://www.accuweather.com/]. Provides data on current weather conditions.
+    Doesn't support forecast on specific date.
+* [https://openweathermap.org/]. Provides data on current weather conditions.
+    Doesn't support forecast on specific date.
+* [https://www.weatherapi.com/]. May provide weather data for specific date, depending on
+    user's subscription plan.
+
+Please note that using any of these providers requires registration and possibly subscription
+to paid plan.
+
+Features:
+
+* `weather configure` - configure specific forecast provider, either in interactive mode
+    or by passing all necessary parameters via command line
+* `weather get` - get weather info for current provider - or pick another provider
+    and optionally make it current one
+* `weather clear` - clear configuration for specific or all forecast providers
+* `weather list` - list more detailed information on all supported forecast providers
+
+See application's CLI help for more details
+
 ## Development
 
 Project uses `cargo-make` for automating certain tasks:
@@ -8,6 +32,9 @@ Project uses `cargo-make` for automating certain tasks:
         use `cargo fmt` to run formatter
     * `cargo make ci-lint` - runs `cargo clippy` with additional settings
     * `cargo make ci-test` - runs `cargo test`
+
+CI executes all these checks, so ensure your change complies with project style
+by running `cargo make ci` 
 
 ## Notes and limitations
 
@@ -30,7 +57,7 @@ Implementation of [Weather CLI demo application](https://gist.github.com/anelson
 ### Possible changes and optimizations
 
 * Use statically generated dispatch functions for provider registry
-    * Remove need for dynamic registry
+    * Removes need for dynamic registry
     * Generate provider-specific config readers and verifiers at compile-time
     * Generate enum for providers set
     * Remove futures boxing
