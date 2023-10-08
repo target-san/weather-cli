@@ -181,6 +181,6 @@ pub fn write_to_file(config: &Config, path: impl AsRef<Path>) -> anyhow::Result<
         })?;
     }
 
-    fs::write(&config_path, config.to_string())
+    fs::write(config_path, config.to_string())
         .with_context(|| anyhow!("When writing configuration to {}", config_path.display()))
 }

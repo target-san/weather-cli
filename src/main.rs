@@ -71,10 +71,10 @@ fn main() -> anyhow::Result<()> {
     Ok(())
 }
 /// Executes future using lightweight current-thread scheduler
-/// 
+///
 /// # Parameters
 /// * `future` - input object convertible into future which produces `Result`
-/// 
+///
 /// # Returns
 /// Future's execution result
 fn run_future<R>(future: impl IntoFuture<Output = anyhow::Result<R>>) -> anyhow::Result<R> {
