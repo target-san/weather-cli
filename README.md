@@ -16,8 +16,6 @@ Implementation of [Weather CLI demo application](https://gist.github.com/anelson
 * `AerisWeather` requires complex OAuth-based authentication and application registration, so it's omitted intentionally
 * `OpenWeather` provides only 24h forecast on free plans, so custom date isn't supported
 * `AccuWeather`'s historical data is available only on enterprise plans, so custom date isn't supported either
-* `AccuWeather` isn't tested on CI - it has ridiculous limitation of 50 requests per day on free/trial plans.
-    Since this limit includes location requests, effective number of queries is 25 RPD.
 * INI is intentionally used as config format. More complicated formats like TOML or JSON would simply stand in way
     because they would need more data type checking and conversions than actually needed.
 * Most application code uses normal blocking IO, although async IO is used for network queries.

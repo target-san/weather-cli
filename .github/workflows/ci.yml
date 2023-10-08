@@ -52,14 +52,10 @@ jobs:
       run: |
         cargo run configure weatherapi apikey=$APIKEY
         cargo run get -p weatherapi Washington
-    # NB: AccuWeather was tested just like others.
-    # Unfortunately it has ridiculouks limit of 50 requests per day on free plan,
-    # which includes location requests, making limit effectively 25 RPD.
-    # So it was excluded from CI.
-    # - name: Test accuweather
-    #   shell: bash
-    #   env:
-    #     APIKEY: ${{ secrets.ACCUWEATHER_CI_APIKEY }}
-    #   run: |
-    #     cargo run configure accuweather apikey=$APIKEY
-    #     cargo run get -p accuweather Washington
+    - name: Test accuweather
+      shell: bash
+      env:
+        APIKEY: ${{ secrets.ACCUWEATHER_CI_APIKEY }}
+      run: |
+        cargo run configure accuweather apikey=$APIKEY
+        cargo run get -p accuweather Washington
