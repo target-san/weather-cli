@@ -4,26 +4,6 @@ use std::str::FromStr;
 use anyhow::{anyhow, Context};
 use reqwest::IntoUrl;
 
-/// Execute provided closure and return its result
-///
-/// Small helper function simply for the purpose of gathering multiple `?` errors
-/// and applying some transformation to them once.
-/// One such example is adding context via `anyhow::Context::with_context`
-#[allow(unused)]
-pub fn try_block<R, E>(block: impl FnOnce() -> Result<R, E>) -> Result<R, E> {
-    block()
-}
-/// Execute provided closure and return its result
-///
-/// Small helper function simply for the purpose of gathering multiple `?` errors
-/// and applying some transformation to them once.
-/// One such example is adding context via `anyhow::Context::with_context`
-///
-/// Differs from `try_block` only in fixing error type to `anyhow::Error`
-#[allow(unused)]
-pub fn try_block_anyhow<R>(block: impl FnOnce() -> anyhow::Result<R>) -> anyhow::Result<R> {
-    block()
-}
 /// Perform HTTP GET request to REST API endpoint, handle its success or failure
 /// and parse result, either successful or failing, from text
 ///
